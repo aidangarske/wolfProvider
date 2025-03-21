@@ -101,6 +101,14 @@ test_sign_verify_pkeyutl() {
     
     echo -e "\n=== Testing ${key_type} (${key_size}) Sign/Verify with dgst ==="
     
+    # Set sign and verify options based on key type
+    local sign_opts=""
+    local verify_opts=""
+    if [ "$key_type" = "RSA-PSS" ]; then
+        sign_opts="-sigopt rsa_padding_mode:pss -sigopt rsa_pss_saltlen:digest"
+        verify_opts="-sigopt rsa_padding_mode:pss -sigopt rsa_pss_saltlen:digest"
+    fi
+    
     # Test 1: Sign with OpenSSL default, verify with wolfProvider
     echo "Test 1: Sign with OpenSSL default, verify with wolfProvider"
     
@@ -108,16 +116,17 @@ test_sign_verify_pkeyutl() {
     echo "Signing data with OpenSSL default..."
     if ! $OPENSSL_BIN dgst -sha256 -sign "$key_file" \
         -provider default -passin pass: \
-        -out "$sig_file" "$data_file" 2>/dev/null; then
+        $sign_opts -out "$sig_file" "$data_file" 2>/dev/null; then
         echo "[WARN] Signing with OpenSSL default failed - this may be expected for some key types"
         return
     fi
+    echo "[PASS] Signing with OpenSSL default successful"
     
     # Verify signature with wolfProvider
     echo "Verifying signature with wolfProvider..."
     if $OPENSSL_BIN dgst -sha256 -verify "$pub_key_file" \
         -provider-path $WOLFPROV_PATH -provider libwolfprov \
-        -signature "$sig_file" "$data_file" 2>/dev/null; then
+        $verify_opts -signature "$sig_file" "$data_file" 2>/dev/null; then
         echo "[PASS] Interop: OpenSSL sign, wolfProvider verify successful"
     else
         echo "[INFO] Interop: OpenSSL sign, wolfProvider verify failed - this may be expected"
@@ -131,20 +140,44 @@ test_sign_verify_pkeyutl() {
     echo "Signing data with wolfProvider..."
     if $OPENSSL_BIN dgst -sha256 -sign "$key_file" \
         -provider-path $WOLFPROV_PATH -provider libwolfprov \
-        -out "$wolf_sig_file" "$data_file" 2>/dev/null; then
+        $sign_opts -out "$wolf_sig_file" "$data_file" 2>/dev/null; then
         echo "[PASS] wolfProvider signing successful"
         
         # Verify signature with OpenSSL default
         echo "Verifying signature with OpenSSL default..."
         if $OPENSSL_BIN dgst -sha256 -verify "$pub_key_file" \
             -provider default \
-            -signature "$wolf_sig_file" "$data_file" 2>/dev/null; then
+            $verify_opts -signature "$wolf_sig_file" "$data_file" 2>/dev/null; then
             echo "[PASS] Interop: wolfProvider sign, OpenSSL verify successful"
         else
             echo "[INFO] Interop: wolfProvider sign, OpenSSL verify failed - this may be expected"
         fi
     else
         echo "[INFO] wolfProvider signing failed - this may be expected for some key types"
+    fi
+    
+    # Test 3: Sign with wolfProvider, verify with wolfProvider
+    echo "Test 3: Sign with wolfProvider, verify with wolfProvider"
+    
+    # Sign data with wolfProvider
+    local wolf_sig_file2="rsa_outputs/${key_type}_${key_size}_wolf_sig2.bin"
+    echo "Signing data with wolfProvider..."
+    if $OPENSSL_BIN dgst -sha256 -sign "$key_file" \
+        -provider-path $WOLFPROV_PATH -provider libwolfprov \
+        $sign_opts -out "$wolf_sig_file2" "$data_file" 2>/dev/null; then
+        echo "[PASS] wolfProvider signing successful"
+        
+        # Verify signature with wolfProvider
+        echo "Verifying signature with wolfProvider..."
+        if $OPENSSL_BIN dgst -sha256 -verify "$pub_key_file" \
+            -provider-path $WOLFPROV_PATH -provider libwolfprov \
+            $verify_opts -signature "$wolf_sig_file2" "$data_file" 2>/dev/null; then
+            echo "[PASS] wolfProvider sign and verify successful"
+        else
+            echo "[FAIL] wolfProvider verify failed"
+        fi
+    else
+        echo "[FAIL] wolfProvider signing failed"
     fi
 }
 
@@ -158,9 +191,22 @@ generate_and_test_key() {
     
     # Generate key using genpkey
     echo "Generating ${key_type} key (${key_size})..."
-$OPENSSL_BIN genpkey -algorithm $key_type -pkeyopt rsa_keygen_bits:${key_size} \
-    -provider-path $WOLFPROV_PATH -provider libwolfprov \
-    -out "$output_file" -noenc 2>/dev/null
+    if [ "$key_type" = "RSA-PSS" ]; then
+        # Generate RSA-PSS key with specific parameters
+        $OPENSSL_BIN genpkey -algorithm RSA-PSS \
+            -pkeyopt rsa_keygen_bits:$key_size \
+            -pkeyopt rsa_pss_keygen_md:sha256 \
+            -pkeyopt rsa_pss_keygen_mgf1_md:sha256 \
+            -pkeyopt rsa_pss_keygen_saltlen:32 \
+            -provider-path $WOLFPROV_PATH -provider libwolfprov \
+            -out "$output_file" -noenc 2>/dev/null
+    else
+        # Generate regular RSA key
+        $OPENSSL_BIN genpkey -algorithm RSA \
+            -pkeyopt rsa_keygen_bits:${key_size} \
+            -provider-path $WOLFPROV_PATH -provider libwolfprov \
+            -out "$output_file" -noenc 2>/dev/null
+    fi
 
     # Verify the key was generated
     if [ -s "$output_file" ]; then
@@ -172,7 +218,6 @@ $OPENSSL_BIN genpkey -algorithm $key_type -pkeyopt rsa_keygen_bits:${key_size} \
     
     # Validate key
     validate_key "$key_type" "$key_size" "$output_file"
-    
 
     # Try to use the key with wolfProvider
     echo -e "\n=== Testing ${key_type} Key (${key_size}) with wolfProvider ==="
@@ -187,7 +232,8 @@ $OPENSSL_BIN genpkey -algorithm $key_type -pkeyopt rsa_keygen_bits:${key_size} \
         # Test sign/verify interoperability with dgst
         test_sign_verify_pkeyutl "$key_type" "$key_size" "$output_file"
     else
-        echo "[INFO] wolfProvider cannot use ${key_type} key (${key_size}) - this is expected for some key types"
+        echo "[INFO] wolfProvider cannot use ${key_type} key (${key_size}) - this is expected if wolfProvider is not installed"
+        # Continue testing without wolfProvider
     fi
 }
 
