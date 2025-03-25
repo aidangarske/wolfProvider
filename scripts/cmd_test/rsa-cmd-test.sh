@@ -1,6 +1,6 @@
 #!/bin/bash
 # rsa-cmd-test.sh
-# RSA key generation test for wolfProvider
+# RSA and RSA-PSS key generation test for wolfProvider
 #
 # Copyright (C) 2006-2024 wolfSSL Inc.
 #
@@ -20,7 +20,7 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335, USA
 
-Set up environment
+# Set up environment
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 REPO_ROOT="$( cd "${SCRIPT_DIR}/../.." &> /dev/null && pwd )"
 UTILS_DIR="${REPO_ROOT}/scripts"
@@ -58,9 +58,24 @@ mkdir -p rsa_outputs
 # Create test data for signing
 echo "This is test data for RSA signing and verification." > rsa_outputs/test_data.txt
 
-# Array of RSA key types and sizes to test
+# Array of RSA key types, sizes, and providers to test
 KEY_TYPES=("RSA" "RSA-PSS")
 KEY_SIZES=("2048" "3072" "4096")
+PROVIDER_ARGS=("-provider-path $WOLFPROV_PATH -provider libwolfprov" "-provider default")
+
+# Function to use default provider only
+use_default_provider() {
+    unset OPENSSL_MODULES
+    unset OPENSSL_CONF
+    echo "Switched to default provider"
+}
+
+# Function to use wolf provider only
+use_wolf_provider() {
+    export OPENSSL_MODULES=$WOLFPROV_PATH
+    export OPENSSL_CONF=${WOLFPROV_CONFIG}
+    echo "Switched to wolfProvider"
+}
 
 echo "=== Running RSA Key Generation Tests ==="
 
@@ -69,7 +84,7 @@ validate_key() {
     local key_type=$1
     local key_size=$2
     local key_file=${3:-"rsa_outputs/${key_type}_${key_size}.pem"}
-    
+    local provider_args=$4
     echo -e "\n=== Validating ${key_type} Key (${key_size}) ==="
     
     # Check if key exists and has content
@@ -82,7 +97,7 @@ validate_key() {
     # Try to extract public key
     local pub_key_file="rsa_outputs/${key_type}_${key_size}_pub.pem"
     if $OPENSSL_BIN pkey -in "$key_file" -pubout -out "$pub_key_file" \
-        -provider-path $WOLFPROV_PATH -provider libwolfprov 2>/dev/null; then
+        ${provider_args} -passin pass: >/dev/null; then
         echo "[PASS] ${key_type} Public key extraction successful"
     else
         echo "[WARN] ${key_type} Public key extraction failed"
@@ -90,104 +105,109 @@ validate_key() {
     fi
 }
 
-# Function to test sign/verify interoperability using pkeyutl for standard RSA
-test_sign_verify_pkeyutl_rsa() {
-    local key_size=$1
-    local key_file="rsa_outputs/RSA_${key_size}.pem"
-    local pub_key_file="rsa_outputs/RSA_${key_size}_pub.pem"
-    local data_file="rsa_outputs/test_data.txt"
+# Function to sign data with RSA-PSS
+sign_rsa_pss() {
+    local key_file=$1
+    local data_file=$2
+    local sig_file=$3
+    local provider_args=$4
     
-    echo -e "\n=== Testing Standard RSA (${key_size}) Sign/Verify with pkeyutl ==="
-    
-    # Test 1: Sign and verify with OpenSSL default
-    echo "Test 1: Sign and verify with OpenSSL default (standard RSA)"
-    local default_sig_file="rsa_outputs/RSA_${key_size}_default_sig.bin"
-
-    echo "Signing data with OpenSSL default..."
-    if $OPENSSL_BIN pkeyutl -sign -inkey "$key_file" \
-        -provider default \
-        -passin pass: \
+    echo "Signing data with RSA-PSS..."
+    $OPENSSL_BIN pkeyutl -sign -inkey "$key_file" \
+        ${provider_args} -provider default -passin pass: \
+        -rawin -digest sha256 \
+        -pkeyopt rsa_padding_mode:pss \
+        -pkeyopt rsa_pss_saltlen:-1 \
+        -pkeyopt rsa_mgf1_md:sha256 \
         -in "$data_file" \
-        -out "$default_sig_file"; then
-        echo "[PASS] Signing with OpenSSL default successful"
-
-        echo "Verifying signature with OpenSSL default..."
-        if $OPENSSL_BIN pkeyutl -verify -pubin -inkey "$pub_key_file" \
-            -provider default \
-            -in "$data_file" \
-            -sigfile "$default_sig_file" 2>/dev/null; then
-            echo "[PASS] Default provider sign/verify successful"
-        else
-            echo "[WARN] Default provider verify failed"
-            return 1
-        fi
-    else
-        echo "[WARN] Default provider signing failed"
-        return 1
-    fi
-    
-    # Test 2: Sign and verify with wolfProvider
-    echo "Test 2: Sign and verify with wolfProvider (standard RSA)"
-    local wolf_sig_file="rsa_outputs/RSA_${key_size}_wolf_sig.bin"
-    
-    echo "Signing data with wolfProvider..."
-    if $OPENSSL_BIN pkeyutl -sign -inkey "$key_file" \
-        -provider-path $WOLFPROV_PATH -provider libwolfprov \
-        -in "$data_file" \
-        -out "$wolf_sig_file" 2>/dev/null; then
-        echo "[PASS] Signing with wolfProvider successful"
-        
-        echo "Verifying signature with wolfProvider..."
-        if $OPENSSL_BIN pkeyutl -verify -pubin -inkey "$pub_key_file" \
-            -provider-path $WOLFPROV_PATH -provider libwolfprov \
-            -in "$data_file" \
-            -sigfile "$wolf_sig_file" 2>/dev/null; then
-            echo "[PASS] wolfProvider sign/verify successful"
-        else
-            echo "[WARN] wolfProvider verify failed"
-            return 1
-        fi
-    else
-        echo "[WARN] wolfProvider signing failed"
-        return 1
-    fi
+        -out "$sig_file"
+    return $?
 }
 
-# Function to test sign/verify interoperability using pkeyutl for RSA-PSS
-test_sign_verify_pkeyutl_rsa_pss() {
-    local key_size=$1
-    local key_file="rsa_outputs/RSA-PSS_${key_size}.pem"
-    local pub_key_file="rsa_outputs/RSA-PSS_${key_size}_pub.pem"
-    local data_file="rsa_outputs/test_data.txt"
+# Function to verify RSA-PSS signature
+verify_rsa_pss() {
+    local pub_key_file=$1
+    local data_file=$2
+    local sig_file=$3
+    local provider_args=$4
     
-    echo -e "\n=== Testing RSA-PSS (${key_size}) Sign/Verify with pkeyutl ==="
-    
-    # Test 1: Sign and verify with OpenSSL default
-    echo "Test 1: Sign and verify with OpenSSL default (RSA-PSS)"
-    local default_sig_file="rsa_outputs/RSA-PSS_${key_size}_default_sig.bin"
-
-    echo "Signing data with OpenSSL default..."
-    if $OPENSSL_BIN pkeyutl -sign -inkey "$key_file" \
-        -provider default \
-        -passin pass: \
+    echo "Verifying RSA-PSS signature..."
+    $OPENSSL_BIN pkeyutl -verify -pubin -inkey "$pub_key_file" \
+        ${provider_args} -provider default -passin pass: \
+        -rawin -digest sha256 \
         -pkeyopt rsa_padding_mode:pss \
         -pkeyopt rsa_pss_saltlen:-1 \
         -pkeyopt rsa_mgf1_md:sha256 \
-        -digest sha256 \
         -in "$data_file" \
-        -out "$default_sig_file"; then
-        echo "[PASS] Signing with OpenSSL default successful"
+        -sigfile "$sig_file"
+    return $?
+}
 
-        echo "Verifying signature with OpenSSL default..."
-        if $OPENSSL_BIN pkeyutl -verify -pubin -inkey "$pub_key_file" \
-            -provider default \
-            -pkeyopt rsa_padding_mode:pss \
-            -pkeyopt rsa_pss_saltlen:-1 \
-            -pkeyopt rsa_mgf1_md:sha256 \
-            -digest sha256 \
-            -in "$data_file" \
-            -sigfile "$default_sig_file" 2>/dev/null; then
-            echo "[PASS] Default provider sign/verify successful"
+# Function to sign data with standard RSA
+sign_rsa() {
+    local key_file=$1
+    local data_file=$2
+    local sig_file=$3
+    local provider_args=$4
+    
+    echo "Signing data with standard RSA..."
+    $OPENSSL_BIN pkeyutl -sign -inkey "$key_file" \
+        ${provider_args} -passin pass: \
+        -in "$data_file" \
+        -out "$sig_file"
+    return $?
+}
+
+# Function to verify standard RSA signature
+verify_rsa() {
+    local pub_key_file=$1
+    local data_file=$2
+    local sig_file=$3
+    local provider_args=$4
+    
+    echo "Verifying standard RSA signature..."
+    $OPENSSL_BIN pkeyutl -verify -pubin -inkey "$pub_key_file" \
+        ${provider_args} -passin pass: \
+        -in "$data_file" \
+        -sigfile "$sig_file"
+    return $?
+}
+
+# Generic function to test sign/verify interoperability using pkeyutl
+test_sign_verify_pkeyutl() {
+    local key_type=$1
+    local key_size=$2
+    local provider_args=$3
+    local sign_func=$4
+    local verify_func=$5
+
+    # Print the provider args
+    if [ "$provider_args" = "-provider default" ]; then
+        provider_name="default"
+    else
+        provider_name="wolfProvider"
+    fi
+    
+    # Handle different key naming conventions
+    local key_prefix="${key_type}"
+    if [ "$key_type" = "RSA" ]; then
+        key_prefix="RSA"
+    fi
+    
+    local key_file="rsa_outputs/${key_prefix}_${key_size}.pem"
+    local pub_key_file="rsa_outputs/${key_prefix}_${key_size}_pub.pem"
+    local data_file="rsa_outputs/test_data.txt"
+    
+    echo -e "\n=== Testing ${key_type} (${key_size}) Sign/Verify with pkeyutl Using ${provider_name} ==="
+    
+    # Test 1: Sign and verify with OpenSSL default
+    use_default_provider
+    echo "Test 1: Sign and verify with OpenSSL default (${key_type})"
+    local default_sig_file="rsa_outputs/${key_prefix}_${key_size}_default_sig.bin"
+    if $sign_func "$key_file" "$data_file" "$default_sig_file" "$provider_args"; then
+        echo "[PASS] Signing with OpenSSL default successful"
+        if $verify_func "$pub_key_file" "$data_file" "$default_sig_file" "$provider_args"; then
+            echo "[PASS] Default provider verify successful"
         else
             echo "[WARN] Default provider verify failed"
             return 1
@@ -196,32 +216,14 @@ test_sign_verify_pkeyutl_rsa_pss() {
         echo "[WARN] Default provider signing failed"
         return 1
     fi
-    
+
     # Test 2: Sign and verify with wolfProvider
-    echo "Test 2: Sign and verify with wolfProvider (RSA-PSS)"
-    local wolf_sig_file="rsa_outputs/RSA-PSS_${key_size}_wolf_sig.bin"
-    
-    echo "Signing data with wolfProvider..."
-    if $OPENSSL_BIN pkeyutl -sign -inkey "$key_file" \
-        -provider-path $WOLFPROV_PATH -provider libwolfprov \
-        -passin pass: \
-        -pkeyopt rsa_padding_mode:pss \
-        -pkeyopt rsa_pss_saltlen:-1 \
-        -pkeyopt rsa_mgf1_md:sha256 \
-        -digest sha256 \
-        -in "$data_file" \
-        -out "$wolf_sig_file" 2>/dev/null; then
+    use_wolf_provider
+    echo "Test 2: Sign and verify with wolfProvider (${key_type})"
+    local wolf_sig_file="rsa_outputs/${key_prefix}_${key_size}_wolf_sig.bin"
+    if $sign_func "$key_file" "$data_file" "$wolf_sig_file" "$provider_args"; then
         echo "[PASS] Signing with wolfProvider successful"
-        
-        echo "Verifying signature with wolfProvider..."
-        if $OPENSSL_BIN pkeyutl -verify -pubin -inkey "$pub_key_file" \
-            -provider-path $WOLFPROV_PATH -provider libwolfprov \
-            -pkeyopt rsa_padding_mode:pss \
-            -pkeyopt rsa_pss_saltlen:-1 \
-            -pkeyopt rsa_mgf1_md:sha256 \
-            -digest sha256 \
-            -in "$data_file" \
-            -sigfile "$wolf_sig_file" 2>/dev/null; then
+        if $verify_func "$pub_key_file" "$data_file" "$wolf_sig_file" "$provider_args"; then
             echo "[PASS] wolfProvider sign/verify successful"
         else
             echo "[WARN] wolfProvider verify failed"
@@ -230,6 +232,24 @@ test_sign_verify_pkeyutl_rsa_pss() {
     else
         echo "[WARN] wolfProvider signing failed"
         return 1
+    fi
+    
+    # Test 3: Cross-provider verification (default sign, wolf verify)
+    use_wolf_provider
+    echo "Test 3: Cross-provider verification (default sign, wolf verify)"
+    if $verify_func "$pub_key_file" "$data_file" "$default_sig_file" "$provider_args"; then
+        echo "[PASS] wolfProvider can verify OpenSSL default signature"
+    else
+        echo "[WARN] wolfProvider cannot verify OpenSSL default signature"
+    fi
+    
+    # Test 4: Cross-provider verification (wolf sign, default verify)
+    use_default_provider
+    echo "Test 4: Cross-provider verification (wolf sign, default verify)"
+    if $verify_func "$pub_key_file" "$data_file" "$wolf_sig_file" "$provider_args"; then
+        echo "[PASS] OpenSSL default can verify wolfProvider signature"
+    else
+        echo "[WARN] OpenSSL default cannot verify wolfProvider signature"
     fi
 }
 
@@ -237,28 +257,36 @@ test_sign_verify_pkeyutl_rsa_pss() {
 generate_and_test_key() {
     local key_type=$1
     local key_size=$2
+    local provider_args=$3
     local output_file="rsa_outputs/${key_type}_${key_size}.pem"
     
-    echo -e "\n=== Testing ${key_type} Key Generation (${key_size}) ==="
-
-    # Generate key using genpkey
+    echo -e "\n=== Testing ${key_type} Key Generation (${key_size}) with provider default ==="
     echo "Generating ${key_type} key (${key_size})..."
     if [ "$key_type" = "RSA-PSS" ]; then
         # For RSA-PSS, specify all parameters
-        $OPENSSL_BIN genpkey -algorithm RSA-PSS \
-            -provider default \
+        if $OPENSSL_BIN genpkey -algorithm RSA-PSS \
+            ${provider_args} \
             -pkeyopt rsa_keygen_bits:${key_size} \
             -pkeyopt rsa_pss_keygen_md:sha256 \
             -pkeyopt rsa_pss_keygen_mgf1_md:sha256 \
             -pkeyopt rsa_pss_keygen_saltlen:-1 \
-            -out "$output_file"
+            -out "$output_file" 2>/dev/null; then
+            echo "[PASS] RSA-PSS key generation successful"
+        else
+            echo "[FAIL] RSA-PSS key generation failed"
+            return 1
+        fi
     else
         # Regular RSA key generation
-        $OPENSSL_BIN genpkey -algorithm RSA \
+        if $OPENSSL_BIN genpkey -algorithm RSA \
+            ${provider_args} \
             -pkeyopt rsa_keygen_bits:${key_size} \
-            -provider-path $WOLFPROV_PATH -provider libwolfprov \
-            -out "$output_file" \
-            -noenc 2>/dev/null
+            -out "$output_file" 2>/dev/null; then
+            echo "[PASS] RSA key generation successful"
+        else
+            echo "[FAIL] RSA key generation failed"
+            return 1
+        fi
     fi
 
     # Verify the key was generated
@@ -270,35 +298,40 @@ generate_and_test_key() {
     fi
     
     # Validate key
-    validate_key "$key_type" "$key_size" "$output_file"
+    validate_key "$key_type" "$key_size" "$output_file" "$provider_args"
 
-    # Try to use the key with wolfProvider
-    echo -e "\n=== Testing ${key_type} Key (${key_size}) with wolfProvider ==="
-    echo "Checking if wolfProvider can use the key..."
+    # Try to use the key with provider default
+    echo -e "\n=== Testing ${key_type} Key (${key_size}) with provider default ==="
+    echo "Checking if provider default can use the key..."
     
     # Try to use the key with wolfProvider (just check if it loads)
     if $OPENSSL_BIN pkey -in "$output_file" -check \
-        -provider-path "${WOLFPROV_PATH}" -provider libwolfprov \
-        -provider default -passin pass: 2>/dev/null; then
-        echo "[PASS] wolfProvider can use ${key_type} key (${key_size})"
-        
-        # Test sign/verify interoperability with appropriate function
-        if [ "$key_type" = "RSA-PSS" ]; then
-            test_sign_verify_pkeyutl_rsa_pss "$key_size"
-        else
-            test_sign_verify_pkeyutl_rsa "$key_size"
-        fi
+        ${provider_args} -passin pass: >/dev/null; then
+        echo "[PASS] provider default can use ${key_type} key (${key_size})"
+        return 0
     else
-        echo "[INFO] wolfProvider cannot use ${key_type} key (${key_size}) - this is expected if wolfProvider is not installed"
+        echo "[FAIL] provider default cannot use ${key_type} key (${key_size})"
+        return 1
     fi
 }
 
-# Test key generation for each type and size
+# Test key generation for each type, size, and provider
 for key_type in "${KEY_TYPES[@]}"; do
     for key_size in "${KEY_SIZES[@]}"; do
-        generate_and_test_key "$key_type" "$key_size"
+        # Generate with default provider
+        test_provider="-provider default"
+        generate_and_test_key "$key_type" "$key_size" "$test_provider"
+    
+        # Test sign/verify interoperability with appropriate function
+        for test_provider in "${PROVIDER_ARGS[@]}"; do
+            if [ "$key_type" = "RSA-PSS" ]; then
+                test_sign_verify_pkeyutl "$key_type" "$key_size" "$test_provider" sign_rsa_pss verify_rsa_pss
+            else
+                test_sign_verify_pkeyutl "$key_type" "$key_size" "$test_provider" sign_rsa verify_rsa
+            fi
+        done
     done
 done
 
-echo -e "\n=== All RSA key generation tests completed successfully ==="
+echo -e "\n=== All ECC key generation tests completed successfully ==="
 exit 0
