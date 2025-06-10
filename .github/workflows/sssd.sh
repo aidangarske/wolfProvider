@@ -8,13 +8,12 @@
 set -e
 set -x
 
-# Save original directory
-TOP_DIR=$(pwd)
+SSSD_REF="2.9.1"
 
 # Define base directories for cleaner paths
-WOLFPROV_DIR="/home/aidangarske/wolfProvider"
+WOLFPROV_DIR="/home/user/wolfProvider"
 WOLFSSL_INSTALL="$WOLFPROV_DIR/wolfssl-install"
-OPENSSL_INSTALL="$WOLFPROV_DIR/openssl-install"
+OPENSSL_INSTALL="$WOLFPROV_DIR/usr"
 WOLFPROV_INSTALL="$WOLFPROV_DIR/wolfprov-install"
 
 # Go to wolfProvider directory
@@ -27,13 +26,6 @@ export OPENSSL_MODULES="${WOLFPROV_INSTALL}/lib"
 export PKG_CONFIG_PATH="${OPENSSL_INSTALL}/lib64/pkgconfig"
 export LDFLAGS="-L${OPENSSL_INSTALL}/lib64"
 export CPPFLAGS="-I${OPENSSL_INSTALL}/include"
-
-# Setup environment
-ln -s samba-4.0/ldb.h /usr/include/ldb.h
-ln -s samba-4.0/ldb_errors.h /usr/include/ldb_errors.h
-ln -s samba-4.0/ldb_handlers.h /usr/include/ldb_handlers.h
-ln -s samba-4.0/ldb_module.h /usr/include/ldb_module.h
-ln -s samba-4.0/ldb_version.h /usr/include/ldb_version.h
 
 # Clone SSSD
 rm -rf sssd
