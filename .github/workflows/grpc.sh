@@ -18,6 +18,8 @@ WOLFSSL_INSTALL="$WOLFPROV_DIR/wolfssl-install"
 OPENSSL_INSTALL="$WOLFPROV_DIR/openssl-install"
 WOLFPROV_INSTALL="$WOLFPROV_DIR/wolfprov-install"
 
+ldd --version
+
 # Go to wolfProvider directory
 cd "$WOLFPROV_DIR"
 

@@ -27,7 +27,7 @@ git clone --depth=1 --branch="${OPENVPN_REF}" https://github.com/OpenVPN/openvpn
 
 # Set environment variables
 export LD_LIBRARY_PATH="${WOLFSSL_INSTALL}/lib:${OPENSSL_INSTALL}/lib64"
-export OPENSSL_CONF="${WOLFPROV_DIR}/provider-fips.conf"
+export OPENSSL_CONF="${WOLFPROV_DIR}/fips-provider.conf"
 export OPENSSL_MODULES="${WOLFPROV_INSTALL}/lib"
 export PKG_CONFIG_PATH="${OPENSSL_INSTALL}/lib64/pkgconfig"
 export LDFLAGS="-L${OPENSSL_INSTALL}/lib64"

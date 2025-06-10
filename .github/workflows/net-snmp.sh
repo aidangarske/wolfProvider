@@ -13,13 +13,15 @@ set -x
 NET_SNMP_REF="v5.9.3"
 
 # Define base directories for cleaner paths
-WOLFPROV_DIR="/home/aidangarske/wolfProvider"
+WOLFPROV_DIR="/home/user/wolfProvider"
 WOLFSSL_INSTALL="$WOLFPROV_DIR/wolfssl-install"
-OPENSSL_INSTALL="$WOLFPROV_DIR/openssl-install"
+OPENSSL_INSTALL="/usr"  # Use system OpenSSL
 WOLFPROV_INSTALL="$WOLFPROV_DIR/wolfprov-install"
 
 # Go to wolfProvider directory
 cd "$WOLFPROV_DIR"
+
+netstat --version
 
 # Clone net-snmp repo
 rm -rf net-snmp
@@ -33,6 +35,12 @@ export OPENSSL_MODULES="${WOLFPROV_INSTALL}/lib"
 export PKG_CONFIG_PATH="${OPENSSL_INSTALL}/lib64/pkgconfig"
 export LDFLAGS="-L${OPENSSL_INSTALL}/lib64"
 export CPPFLAGS="-I${OPENSSL_INSTALL}/include"
+
+# Debug: Check if OpenSSL is found
+echo "Checking OpenSSL installation..."
+pkg-config --list-all | grep -i openssl
+pkg-config --cflags openssl
+pkg-config --libs openssl
 
 # Build net-snmp
 autoreconf -ivf

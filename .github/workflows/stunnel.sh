@@ -17,6 +17,10 @@ WOLFSSL_INSTALL="$WOLFPROV_DIR/wolfssl-install"
 OPENSSL_INSTALL="$WOLFPROV_DIR/openssl-install"
 WOLFPROV_INSTALL="$WOLFPROV_DIR/wolfprov-install"
 
+# Create test directories
+mkdir -p "$WOLFPROV_DIR/logs"
+mkdir -p "$WOLFPROV_DIR/certs"
+
 # Go to wolfProvider directory
 cd "$WOLFPROV_DIR"
 
@@ -31,23 +35,41 @@ export OPENSSL_MODULES="${WOLFPROV_INSTALL}/lib"
 export PKG_CONFIG_PATH="${OPENSSL_INSTALL}/lib64/pkgconfig"
 export LDFLAGS="-L${OPENSSL_INSTALL}/lib64"
 export CPPFLAGS="-I${OPENSSL_INSTALL}/include"
+export STUNNEL_LOG="$WOLFPROV_DIR/logs/stunnel.log"
+export STUNNEL_CERT_DIR="$WOLFPROV_DIR/certs"
 
 # Build stunnel
 cd stunnel
 autoreconf -ivf
-./configure --with-ssl="${OPENSSL_INSTALL}"
+./configure --with-ssl="${OPENSSL_INSTALL}" \
+            --with-threads=pthread \
+            --disable-systemd \
+            --disable-libwrap \
+            --enable-fips
+
 make -j$(nproc)
 
 # Verify stunnel with wolfProvider
+echo "Checking stunnel library dependencies:"
 ldd src/stunnel | grep -E '(libssl|libcrypto)'
+echo "Checking stunnel version and FIPS status:"
 ./src/stunnel -version
 
-# Run tests
-make check
+# Run tests with FIPS mode enabled
+export STUNNEL_FIPS=1
+export STUNNEL_DEBUG=7
+make check TEST_VERBOSE=1
 
-if [ $TEST_RESULT -eq 0 ]; then
+# Check test results
+if [ $? -eq 0 ]; then
   echo "Workflow completed successfully"
+    exit 0
 else
   echo "Workflow failed"
+    # Print debug information
+    echo "=== stunnel.log ==="
+    cat "$STUNNEL_LOG" || true
+    echo "=== Test Logs ==="
+    cat tests/*.log || true
   exit 1
 fi

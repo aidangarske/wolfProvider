@@ -13,9 +13,9 @@ set -x
 OPENSSH_REF="V_10_0_P2"
 
 # Define base directories for cleaner paths
-WOLFPROV_DIR="/home/aidangarske/wolfProvider"
+WOLFPROV_DIR="/home/user/wolfProvider"
 WOLFSSL_INSTALL="$WOLFPROV_DIR/wolfssl-install"
-OPENSSL_INSTALL="$WOLFPROV_DIR/openssl-install"
+OPENSSL_INSTALL="$WOLFPROV_DIR/usr"
 WOLFPROV_INSTALL="$WOLFPROV_DIR/wolfprov-install"
 OSP_DIR="$WOLFPROV_DIR/osp"
 
@@ -41,17 +41,12 @@ export OPENSSL_MODULES="${WOLFPROV_INSTALL}/lib"
 export PKG_CONFIG_PATH="${OPENSSL_INSTALL}/lib64/pkgconfig"
 export LDFLAGS="-L${OPENSSL_INSTALL}/lib64"
 export CPPFLAGS="-I${OPENSSL_INSTALL}/include"
+export FIPS_MODE=1
 
 # Build OpenSSH
 cd openssh-portable
 
-# Apply the patch for the correct version of OpenSSH
-if [ "${OPENSSH_REF}" != "master" ]; then
-    patch -p1 < "${OSP_DIR}/wolfProvider/openssh/openssh-${OPENSSH_REF}-wolfprov.patch"
-else
-    # for master we need to supply the latest release version
-    patch -p1 < "${OSP_DIR}/wolfProvider/openssh/openssh-V_10_0_P2-wolfprov.patch"
-fi
+patch -p1 < "${WOLFPROV_DIR}/patch2.diff"
 
 autoreconf -ivf
 ./configure --with-ssl-dir="${OPENSSL_INSTALL}" \
@@ -60,7 +55,7 @@ autoreconf -ivf
 make -j
 
 # Run all the tests except (t-exec) as it takes too long
-make file-tests interop-tests extra-tests unit
+make CFLAGS="-DFIPS_MODE=1" file-tests interop-tests extra-tests unit
 
 if [ $? -eq 0 ]; then
   echo "Workflow completed successfully"
