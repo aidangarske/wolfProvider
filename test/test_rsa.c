@@ -1180,7 +1180,7 @@ int test_rsa_fromdata(void* data)
         const char *foo = "some string";
         size_t foo_l = strlen(foo);
         const char bar[] = "some other string";
-        
+
         /* Permutations of the params field to test */
         OSSL_PARAM params_none[] = {
             OSSL_PARAM_END
@@ -1248,30 +1248,30 @@ int test_rsa_fromdata(void* data)
 
         for (unsigned i = 0; i < ARRAY_SIZE(selections); i++) {
             for (unsigned j = 0; j < ARRAY_SIZE(params_table); j++) {
-                int status_wolf = EVP_PKEY_fromdata(ctx_wolf, &pkey_wolf, 
+                int status_wolf = EVP_PKEY_fromdata(ctx_wolf, &pkey_wolf,
                                     selections[i], &params_table[j][0]);
-                int status_ossl = EVP_PKEY_fromdata(ctx_ossl, &pkey_ossl, 
+                int status_ossl = EVP_PKEY_fromdata(ctx_ossl, &pkey_ossl,
                                     selections[i], &params_table[j][0]);
 
                 if (status_wolf != status_ossl) {
                     PRINT_MSG("EVP_PKEY_fromdata (wolf=%d) and (ossl=%d) status "
                               "mismatch for selection %d (0x%08X) and params %d",
-                                status_wolf, status_ossl, i, selections[i], j); 
+                                status_wolf, status_ossl, i, selections[i], j);
                     err = 1;
                 }
                 else if (status_wolf == 1) {
                     PRINT_MSG("EVP_PKEY_fromdata (wolf) succeeded for "
                               "selection %d (0x%08X) and params %d",
-                                i, selections[i], j); 
+                                i, selections[i], j);
 
                     if (EVP_PKEY_cmp(pkey_wolf, pkey_ossl) != 1) {
                         PRINT_MSG("EVP_PKEY_cmp failed for selection %d "
-                                  "(0x%08X)", i, selections[i]); 
+                                  "(0x%08X)", i, selections[i]);
                         err = 1;
                     }
                     if (EVP_PKEY_cmp_parameters(pkey_wolf, pkey_ossl) != 1) {
                         PRINT_MSG("EVP_PKEY_cmp_parameters failed for "
-                                  "selection %d (0x%08X)", i, selections[i]); 
+                                  "selection %d (0x%08X)", i, selections[i]);
                         err = 1;
                     }
                 }
@@ -1317,7 +1317,7 @@ static int test_rsa_decode_pkcs8(void)
     if (err == 0) {
         rsakey1 = EVP_PKEY_get0_RSA(pkey1);
         rsakey2 = EVP_PKEY_get0_RSA(pkey2);
-        err = rsakey1 == NULL || rsakey2 == NULL; 
+        err = rsakey1 == NULL || rsakey2 == NULL;
     }
 
     /* Compare the two RSA keys */
@@ -1326,16 +1326,16 @@ static int test_rsa_decode_pkcs8(void)
         const BIGNUM *e1, *e2;
         const BIGNUM *d1, *d2;
         PRINT_MSG("Compare OpenSSL and Wolfprovider RSA keys");
-        RSA_get0_key(rsakey1, 
-            (const BIGNUM **)&n1, 
-            (const BIGNUM **)&e1, 
+        RSA_get0_key(rsakey1,
+            (const BIGNUM **)&n1,
+            (const BIGNUM **)&e1,
             (const BIGNUM **)&d1);
-        RSA_get0_key(rsakey2, 
-            (const BIGNUM **)&n2, 
-            (const BIGNUM **)&e2, 
+        RSA_get0_key(rsakey2,
+            (const BIGNUM **)&n2,
+            (const BIGNUM **)&e2,
             (const BIGNUM **)&d2);
-        err = (BN_cmp(n1, n2) != 0 || 
-               BN_cmp(e1, e2) != 0 || 
+        err = (BN_cmp(n1, n2) != 0 ||
+               BN_cmp(e1, e2) != 0 ||
                BN_cmp(d1, d2) != 0);
     }
 
@@ -1343,17 +1343,17 @@ static int test_rsa_decode_pkcs8(void)
     if (err == 0) {
         const BIGNUM *p1, *p2;
         const BIGNUM *q1, *q2;
-        RSA_get0_factors(rsakey1, 
-            (const BIGNUM **)&p1, 
+        RSA_get0_factors(rsakey1,
+            (const BIGNUM **)&p1,
             (const BIGNUM **)&q1);
-        RSA_get0_factors(rsakey2, 
-            (const BIGNUM **)&p2, 
+        RSA_get0_factors(rsakey2,
+            (const BIGNUM **)&p2,
             (const BIGNUM **)&q2);
         err = (BN_cmp(p1, p2) != 0 || BN_cmp(q1, q2) != 0);
     }
 
     if (err == 0) {
-        err = (RSA_get_multi_prime_extra_count(rsakey1) != 
+        err = (RSA_get_multi_prime_extra_count(rsakey1) !=
             RSA_get_multi_prime_extra_count(rsakey2));
     }
 
@@ -1395,8 +1395,8 @@ static int test_rsa_decode_pkcs8(void)
             (const BIGNUM **)&d1);
         RSA_get0_crt_params(rsakey2, (const BIGNUM **)&p2, (const BIGNUM **)&q2,
             (const BIGNUM **)&d2);
-        err = (BN_cmp(p1, p2) != 0 || 
-               BN_cmp(q1, q2) != 0 || 
+        err = (BN_cmp(p1, p2) != 0 ||
+               BN_cmp(q1, q2) != 0 ||
                BN_cmp(d1, d2) != 0);
     }
 
@@ -1418,7 +1418,7 @@ static int test_rsa_decode_pkcs8(void)
             }
         }
         if (err == 0) {
-            RSA_get0_multi_prime_crt_params(rsakey1, 
+            RSA_get0_multi_prime_crt_params(rsakey1,
                 (const BIGNUM**)exps1, (const BIGNUM**)coeffs1);
             RSA_get0_multi_prime_crt_params(rsakey2,
                 (const BIGNUM**)exps2, (const BIGNUM**)coeffs2);

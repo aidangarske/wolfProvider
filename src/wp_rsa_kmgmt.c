@@ -1087,7 +1087,7 @@ static int wp_rsa_import_key_data(wp_Rsa* rsa, const OSSL_PARAM params[],
 
     /* N and E params are the only ones required by OSSL, so match that.
      * See ossl_rsa_fromdata() and RSA_set0_key() in OpenSSL. */
-    if (OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_RSA_N) == NULL || 
+    if (OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_RSA_N) == NULL ||
         OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_RSA_E) == NULL) {
         WOLFPROV_MSG(WP_LOG_PK, "Param N or E is missing");
         ok = 0;
@@ -1103,13 +1103,13 @@ static int wp_rsa_import_key_data(wp_Rsa* rsa, const OSSL_PARAM params[],
             index = -1;
             for (j = 0; j < (int)ARRAY_SIZE(wp_rsa_param_key); j++) {
                 if (XSTRNCMP(p->key, wp_rsa_param_key[j], p->data_size) == 0) {
-                    index = j; 
+                    index = j;
                     break;
                 }
             }
             if (index < 0) {
                 /* Follow OSSL implementation and ignore irrelevant fields. */
-                WOLFPROV_MSG(WP_LOG_PK, "Unexpected param %s, skipping.", 
+                WOLFPROV_MSG(WP_LOG_PK, "Unexpected param %s, skipping.",
                     p->key);
                 continue;
             }
@@ -2199,6 +2199,7 @@ unsigned char pbkdf2_oid[] = {
  * @return  1 on success.
  * @return  0 on failure.
  */
+#ifdef WOLFSSL_ENCRYPTED_KEYS
 static int wp_rsa_find_pbkdf2_oid(unsigned char* data, word32 len)
 {
     int ok = 0;
@@ -2215,6 +2216,7 @@ static int wp_rsa_find_pbkdf2_oid(unsigned char* data, word32 len)
     WOLFPROV_LEAVE(WP_LOG_PK, __FILE__ ":" WOLFPROV_STRINGIZE(__LINE__), ok);
     return ok;
 }
+#endif /* WOLFSSL_ENCRYPTED_KEYS */
 
 /**
  * Decode the encrypted DER encoded RSA private key into the RSA key object.
@@ -2227,6 +2229,7 @@ static int wp_rsa_find_pbkdf2_oid(unsigned char* data, word32 len)
  * @return  1 on success.
  * @return  0 on failure.
  */
+#ifdef WOLFSSL_ENCRYPTED_KEYS
 static int wp_rsa_decode_enc_pki(wp_Rsa* rsa, unsigned char* data, word32 len,
      OSSL_PASSPHRASE_CALLBACK* pwCb, void* pwCbArg)
 {
@@ -2260,6 +2263,7 @@ static int wp_rsa_decode_enc_pki(wp_Rsa* rsa, unsigned char* data, word32 len,
 
     return ok;
 }
+#endif /* WOLFSSL_ENCRYPTED_KEYS */
 
 /**
  * Construct parameters from RSA key and pass off to callback.

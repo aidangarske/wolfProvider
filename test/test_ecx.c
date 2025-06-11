@@ -49,14 +49,14 @@ static const unsigned char ed25519_key_der[] = {
 // > openssl pkey -in ed25519.der
 static const unsigned char ed25519_priv_key_raw[] = {
     0x55, 0xBA, 0xE1, 0x23, 0x18, 0x24, 0xEA, 0x90, 0x5F, 0x29, 0xE2, 0x8C,
-    0xE7, 0x6D, 0x99, 0x99, 0x8C, 0x15, 0x06, 0x1E, 0x53, 0x61, 0x1A, 0x94, 
+    0xE7, 0x6D, 0x99, 0x99, 0x8C, 0x15, 0x06, 0x1E, 0x53, 0x61, 0x1A, 0x94,
     0xD0, 0x4E, 0x83, 0xEF, 0x04, 0xF1, 0x77, 0xDD
 };
 // Isolated public key for the keypair above.
 // > openssl pkey -in ed25519.der -pubout
 static const unsigned char ed25519_pub_key_raw[] = {
-    0x19, 0x31, 0xC8, 0xA8, 0x5F, 0x8F, 0x5C, 0x50, 0xEF, 0xD9, 0xB4, 0x97, 
-    0x4B, 0xDE, 0xBC, 0xF5, 0x0E, 0x13, 0x1B, 0xDC, 0x51, 0x91, 0x8C, 0x62, 
+    0x19, 0x31, 0xC8, 0xA8, 0x5F, 0x8F, 0x5C, 0x50, 0xEF, 0xD9, 0xB4, 0x97,
+    0x4B, 0xDE, 0xBC, 0xF5, 0x0E, 0x13, 0x1B, 0xDC, 0x51, 0x91, 0x8C, 0x62,
     0xF1, 0x9C, 0x36, 0x15, 0x5C, 0x9A, 0x5F, 0x69
 };
 #endif /* WP_HAVE_ED25519 */
@@ -85,10 +85,10 @@ static const unsigned char ed448_priv_key_raw[] = {
 // Isolated public key for the keypair above.
 // > openssl pkey -in ed448.der -pubout
 static const unsigned char ed448_pub_key_raw[] = {
-    0x3D, 0x05, 0x53, 0x9D, 0x4B, 0x89, 0xA2, 0xD1, 0xED, 0x2A, 0x2F, 0xB5, 
-    0xF2, 0x90, 0x38, 0x95, 0x70, 0x0D, 0xA1, 0xBB, 0x84, 0x2B, 0x52, 0x56, 
-    0x4E, 0xAB, 0x55, 0xF3, 0xB5, 0x9E, 0x05, 0x1F, 0x08, 0xB0, 0xBE, 0xB6, 
-    0x29, 0xC8, 0x68, 0x21, 0xBE, 0x21, 0xE4, 0x51, 0xB2, 0x20, 0x79, 0xB1, 
+    0x3D, 0x05, 0x53, 0x9D, 0x4B, 0x89, 0xA2, 0xD1, 0xED, 0x2A, 0x2F, 0xB5,
+    0xF2, 0x90, 0x38, 0x95, 0x70, 0x0D, 0xA1, 0xBB, 0x84, 0x2B, 0x52, 0x56,
+    0x4E, 0xAB, 0x55, 0xF3, 0xB5, 0x9E, 0x05, 0x1F, 0x08, 0xB0, 0xBE, 0xB6,
+    0x29, 0xC8, 0x68, 0x21, 0xBE, 0x21, 0xE4, 0x51, 0xB2, 0x20, 0x79, 0xB1,
     0x19, 0x6A, 0x80, 0xE7, 0x9A, 0x51, 0xF5, 0xAC, 0x00
 };
 #endif /* WP_HAVE_ED448 */
@@ -99,6 +99,9 @@ static int sign_verify(unsigned char* sig, size_t sigLen,
     int err = 0;
     static unsigned char buf[128];
     static size_t bufLen = 0;
+    #ifdef TEST_MULTITHREADED
+    (void)name; /* Parameter is used in PRINT_MSG calls */
+    #endif
 
     if (bufLen == 0) {
         err = RAND_bytes(buf, sizeof(buf)) == 0;
@@ -160,24 +163,24 @@ int test_ecx_sign_verify(void *data)
         const char* name;
     } types[] = {
         #ifdef WP_HAVE_ED25519
-        { EVP_PKEY_ED25519, sizeof(ed25519_key_der), ed25519_key_der, 
+        { EVP_PKEY_ED25519, sizeof(ed25519_key_der), ed25519_key_der,
             sizeof(sig_ed25519), sig_ed25519, "ed25519" },
         #endif
         #ifdef WP_HAVE_ED448
-        { EVP_PKEY_ED448, sizeof(ed448_key_der), ed448_key_der, 
+        { EVP_PKEY_ED448, sizeof(ed448_key_der), ed448_key_der,
             sizeof(sig_ed448), sig_ed448, "ed448" },
         #endif
     };
 
     for (unsigned i = 0; i < ARRAY_SIZE(types) && err == 0; i++) {
         PRINT_MSG("Testing %s", types[i].name);
-        PRINT_MSG("Testing ECX sign/verify with DER keys (%s)", 
+        PRINT_MSG("Testing ECX sign/verify with DER keys (%s)",
             types[i].name);
         err = RAND_bytes(buf, sizeof(buf)) == 0;
         p = types[i].key;
 
         if (err == 0) {
-            pkey = d2i_PrivateKey_ex(types[i].type, NULL, &p, types[i].keyLen, 
+            pkey = d2i_PrivateKey_ex(types[i].type, NULL, &p, types[i].keyLen,
                 wpLibCtx, NULL);
             err = pkey == NULL;
             if (err) {
@@ -221,7 +224,7 @@ int test_ecx_sign_verify_raw_priv(void *data)
         const char* name;
     } types[] = {
         #ifdef WP_HAVE_ED25519
-        { EVP_PKEY_ED25519, sizeof(ed25519_priv_key_raw), ed25519_priv_key_raw, 
+        { EVP_PKEY_ED25519, sizeof(ed25519_priv_key_raw), ed25519_priv_key_raw,
             sizeof(sig_ed25519), sig_ed25519, "ED25519" },
         #endif
         #ifdef WP_HAVE_ED448
@@ -231,12 +234,12 @@ int test_ecx_sign_verify_raw_priv(void *data)
     };
 
     for (unsigned i = 0; i < ARRAY_SIZE(types) && err == 0; i++) {
-        PRINT_MSG("Testing ECX sign/verify with raw keys (%s)", 
+        PRINT_MSG("Testing ECX sign/verify with raw keys (%s)",
             types[i].name);
 
         /* Create private keys from the byte arrays */
         if (err == 0) {
-            pkey_ossl = EVP_PKEY_new_raw_private_key_ex(osslLibCtx, 
+            pkey_ossl = EVP_PKEY_new_raw_private_key_ex(osslLibCtx,
                 types[i].name, NULL, types[i].key, types[i].keyLen);
             err = pkey_ossl == NULL;
             if (err) {
@@ -245,7 +248,7 @@ int test_ecx_sign_verify_raw_priv(void *data)
         }
 
         if (err == 0) {
-            pkey_wolf = EVP_PKEY_new_raw_private_key_ex(wpLibCtx, types[i].name, 
+            pkey_wolf = EVP_PKEY_new_raw_private_key_ex(wpLibCtx, types[i].name,
                 NULL, types[i].key, types[i].keyLen);
             err = pkey_wolf == NULL;
             if (err) {
@@ -256,7 +259,7 @@ int test_ecx_sign_verify_raw_priv(void *data)
         /* Compare keys */
         if (err == 0) {
             if (EVP_PKEY_cmp(pkey_wolf, pkey_ossl) != 1) {
-                PRINT_MSG("EVP_PKEY_cmp failed"); 
+                PRINT_MSG("EVP_PKEY_cmp failed");
                 err = 1;
             }
             if (EVP_PKEY_cmp_parameters(pkey_wolf, pkey_ossl) != 1) {
@@ -308,12 +311,12 @@ int test_ecx_sign_verify_raw_priv(void *data)
         }
 
         if (err == 0) {
-            err = sign_verify(types[i].sig, types[i].sigLen, pkey_ossl, 
+            err = sign_verify(types[i].sig, types[i].sigLen, pkey_ossl,
                 types[i].name);
         }
 
         if (err == 0) {
-            err = sign_verify(types[i].sig, types[i].sigLen, pkey_wolf, 
+            err = sign_verify(types[i].sig, types[i].sigLen, pkey_wolf,
                 types[i].name);
         }
 
@@ -356,13 +359,13 @@ int test_ecx_sign_verify_raw_pub(void *data)
         const char* name;
     } types[] = {
         #ifdef WP_HAVE_ED25519
-        { EVP_PKEY_ED25519, 
+        { EVP_PKEY_ED25519,
             sizeof(ed25519_key_der), ed25519_key_der,
-            sizeof(ed25519_pub_key_raw), ed25519_pub_key_raw, 
+            sizeof(ed25519_pub_key_raw), ed25519_pub_key_raw,
             sizeof(sig_ed25519), sig_ed25519, "ED25519" },
         #endif
         #ifdef WP_HAVE_ED448
-        { EVP_PKEY_ED448, 
+        { EVP_PKEY_ED448,
             sizeof(ed448_key_der), ed448_key_der,
             sizeof(ed448_pub_key_raw), ed448_pub_key_raw,
             sizeof(sig_ed448), sig_ed448, "ED448" },
@@ -375,7 +378,7 @@ int test_ecx_sign_verify_raw_pub(void *data)
     }
 
     for (unsigned i = 0; i < ARRAY_SIZE(types) && err == 0; i++) {
-        PRINT_MSG("Testing ECX sign/verify with raw public keys (%s)", 
+        PRINT_MSG("Testing ECX sign/verify with raw public keys (%s)",
             types[i].name);
 
         /* Use OpenSSL to get the key from the DER */
@@ -388,7 +391,7 @@ int test_ecx_sign_verify_raw_pub(void *data)
             }
         }
 
-        /* Use OpenSSL to sign the block of random bytes. We will use this 
+        /* Use OpenSSL to sign the block of random bytes. We will use this
          * signature to verify with the public key */
         if (err == 0) {
             PRINT_MSG("Sign with OpenSSL (%s)", types[i].name);
@@ -398,7 +401,7 @@ int test_ecx_sign_verify_raw_pub(void *data)
 
         /* Create keys from the public byte arrays */
         if (err == 0) {
-            pkey_ossl = EVP_PKEY_new_raw_public_key_ex(osslLibCtx, 
+            pkey_ossl = EVP_PKEY_new_raw_public_key_ex(osslLibCtx,
                 types[i].name, NULL, types[i].pubKey, types[i].pubKeyLen);
             err = pkey_ossl == NULL;
             if (err) {
@@ -407,7 +410,7 @@ int test_ecx_sign_verify_raw_pub(void *data)
         }
 
         if (err == 0) {
-            pkey_wolf = EVP_PKEY_new_raw_public_key_ex(wpLibCtx, types[i].name, 
+            pkey_wolf = EVP_PKEY_new_raw_public_key_ex(wpLibCtx, types[i].name,
                 NULL, types[i].pubKey, types[i].pubKeyLen);
             err = pkey_wolf == NULL;
             if (err) {
@@ -418,7 +421,7 @@ int test_ecx_sign_verify_raw_pub(void *data)
         /* Compare keys */
         if (err == 0) {
             if (EVP_PKEY_cmp(pkey_wolf, pkey_ossl) != 1) {
-                PRINT_MSG("EVP_PKEY_cmp failed"); 
+                PRINT_MSG("EVP_PKEY_cmp failed");
                 err = 1;
             }
             if (EVP_PKEY_cmp_parameters(pkey_wolf, pkey_ossl) != 1) {
@@ -581,7 +584,7 @@ int test_ecx_misc(void *data)
             int bits_ossl = EVP_PKEY_get_bits(pkey_ossl);
             int bits_wolf = EVP_PKEY_get_bits(pkey_wolf);
             if (bits_ossl != bits_wolf) {
-                PRINT_MSG("EVP_PKEY_get_bits failed %d %d", 
+                PRINT_MSG("EVP_PKEY_get_bits failed %d %d",
                     bits_ossl, bits_wolf);
                 err = 1;
             }
@@ -591,7 +594,7 @@ int test_ecx_misc(void *data)
             int sec_ossl = EVP_PKEY_get_security_bits(pkey_ossl);
             int sec_wolf = EVP_PKEY_get_security_bits(pkey_wolf);
             if (sec_ossl != sec_wolf) {
-                PRINT_MSG("EVP_PKEY_get_security_bits failed %d %d", 
+                PRINT_MSG("EVP_PKEY_get_security_bits failed %d %d",
                     sec_ossl, sec_wolf);
                 err = 1;
             }
@@ -601,7 +604,7 @@ int test_ecx_misc(void *data)
             int size_ossl = EVP_PKEY_get_size(pkey_ossl);
             int size_wolf = EVP_PKEY_get_size(pkey_wolf);
             if (size_ossl != size_wolf) {
-                PRINT_MSG("EVP_PKEY_get_size failed %d %d", 
+                PRINT_MSG("EVP_PKEY_get_size failed %d %d",
                     size_ossl, size_wolf);
                 err = 1;
             }
@@ -611,7 +614,7 @@ int test_ecx_misc(void *data)
             int sign_ossl = EVP_PKEY_can_sign(pkey_ossl);
             int sign_wolf = EVP_PKEY_can_sign(pkey_wolf);
             if (sign_ossl != sign_wolf) {
-                PRINT_MSG("EVP_PKEY_can_sign failed %d %d", 
+                PRINT_MSG("EVP_PKEY_can_sign failed %d %d",
                     sign_ossl, sign_wolf);
                 err = 1;
             }

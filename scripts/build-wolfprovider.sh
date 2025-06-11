@@ -15,6 +15,7 @@ show_help() {
   echo "  WOLFPROV_DEBUG       If set to 1, builds OpenSSL, wolfSSL, and wolfProvider with debug options enabled"
   echo "  WOLFSSL_FIPS_BUNDLE  Directory containing the wolfSSL FIPS bundle to use instead of cloning from GitHub"
   echo "  WOLFSSL_FIPS_VERSION Version of wolfSSL FIPS bundle (v5, v6, ready), used as an argument for --enable-fips when configuring wolfSSL"
+  echo "  TEST_MULTITHREADED   If set to 1, enables multithreaded tests in wolfProvider"
   echo ""
 }
 
@@ -24,6 +25,9 @@ if [[ "$1" == "--help" || "$1" == "-h" || "$1" == "-help" ]]; then
 fi
 
 echo "Using openssl: $OPENSSL_TAG, wolfssl: $WOLFSSL_TAG"
+if [ "$TEST_MULTITHREADED" = "1" ]; then
+  echo "Multithreaded tests enabled"
+fi
 
 init_wolfprov
 

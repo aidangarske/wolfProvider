@@ -61,6 +61,10 @@ install_wolfprov() {
         if [ "$WOLFPROV_DEBUG" = "1" ]; then
             WOLFPROV_CONFIG_OPTS+=" --enable-debug"
         fi
+        
+        if [ "${TEST_MULTITHREADED}" = "1" ]; then
+            WOLFPROV_CONFIG_OPTS+=" --enable-multithreaded-tests"
+        fi
 
         ./configure ${WOLFPROV_CONFIG_OPTS} CFLAGS="${WOLFPROV_CONFIG_CFLAGS}" >>$LOG_FILE 2>&1
         RET=$?

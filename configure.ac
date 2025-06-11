@@ -93,6 +93,18 @@ AC_ARG_ENABLE([singlethreaded],
     [ ENABLED_SINGLETHREADED=no ]
     )
 
+# Multithreaded tests
+AC_ARG_ENABLE([multithreaded-tests],
+    [AS_HELP_STRING([--enable-multithreaded-tests],[Enable multithreaded tests (default: disabled).])],
+    [ ENABLED_MULTITHREADED_TESTS=$enableval ],
+    [ ENABLED_MULTITHREADED_TESTS=no ]
+    )
+
+if test "$ENABLED_MULTITHREADED_TESTS" = "yes"
+then
+    AM_CFLAGS="$AM_CFLAGS -DTEST_MULTITHREADED"
+fi
+
 if test "$ENABLED_SINGLETHREADED" = "yes"
 then
     AM_CFLAGS="$AM_CFLAGS -DWP_SINGLE_THREADED"
@@ -158,6 +170,7 @@ echo
 echo "   Features "
 echo "   * User settings:              $ENABLED_USERSETTINGS"
 echo "   * Dynamic provider:           $ENABLED_DYNAMIC_PROVIDER"
+echo "   * Multithreaded tests:        $ENABLED_MULTITHREADED_TESTS"
 echo ""
 echo "---"
 
