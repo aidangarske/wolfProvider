@@ -348,7 +348,7 @@ int test_dh_decode(void *data)
     return err;
 }
 
-int test_dh_get_params(void *data) 
+int test_dh_get_params(void *data)
 {
     (void)data;
     int err = 0;
@@ -429,6 +429,9 @@ int test_dh_get_params(void *data)
         int retWolfProvider;
         unsigned char bufWolfProvider[256];
         const char* mode;
+        #ifdef TEST_MULTITHREADED
+        (void)mode;
+        #endif
 
         OSSL_PARAM paramsWolfProvider[2] = { OSSL_PARAM_END, OSSL_PARAM_END };
 

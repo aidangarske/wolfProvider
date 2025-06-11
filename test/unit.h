@@ -44,8 +44,8 @@
 #include <wolfprovider/wp_logging.h>
 
 #ifdef TEST_MULTITHREADED
-#define PRINT_MSG(str)
-#define PRINT_ERR_MSG(str)
+#define PRINT_MSG(str, ...)
+#define PRINT_ERR_MSG(str, ...)
 #else
 #define PRINT_MSG(str, ...)     printf("MSG: " str "\n", ##__VA_ARGS__)
 #define PRINT_ERR_MSG(str, ...) printf("ERR: " str "\n", ##__VA_ARGS__)
