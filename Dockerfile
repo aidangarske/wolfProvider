@@ -8,16 +8,25 @@ RUN apt-get update -y && apt-get install -y \
     automake \
     autotools-dev \
     bc \
+    bind9utils \
     build-essential \
     clang \
     curl \
     cmake \
     cpanminus \
+    dnsutils \
     gettext \
+    gettext-base \
+    autopoint \
     git \
+    libc-ares-dev \
     libcap-dev \
     libcap-ng-dev \
     libc++-dev \
+    libdhash-dev \
+    libini-config-dev \
+    libkrb5-dev \
+    libldap2-dev \
     libldb-dev \
     libldb2 \
     liblz4-dev \
@@ -26,7 +35,9 @@ RUN apt-get update -y && apt-get install -y \
     libnl-genl-3-dev \
     libpam0g-dev \
     libperl-dev \
+    libpcre2-dev \
     libpcre3-dev \
+    libpopt-dev \
     libpsl-dev \
     libpsl5 \
     libreadline-dev \
@@ -66,11 +77,16 @@ RUN groupadd -g ${HOST_GID} user && \
 
 # Create ldb.h symlink before switching to user
 RUN mkdir -p /home/user/wolfProvider/samba-4.0 && \
-    ln -sf /usr/include/ldb.h /home/user/wolfProvider/samba-4.0/ldb.h && \
-    ln -sf /usr/include/ldb_errors.h /home/user/wolfProvider/samba-4.0/ldb_errors.h && \
-    ln -sf /usr/include/ldb_handlers.h /home/user/wolfProvider/samba-4.0/ldb_handlers.h && \
-    ln -sf /usr/include/ldb_module.h /home/user/wolfProvider/samba-4.0/ldb_module.h && \
-    ln -sf /usr/include/ldb_version.h /home/user/wolfProvider/samba-4.0/ldb_version.h
+    ln -sf /usr/include/samba-4.0/ldb.h /home/user/wolfProvider/samba-4.0/ldb.h && \
+    ln -sf /usr/include/samba-4.0/ldb_errors.h /home/user/wolfProvider/samba-4.0/ldb_errors.h && \
+    ln -sf /usr/include/samba-4.0/ldb_handlers.h /home/user/wolfProvider/samba-4.0/ldb_handlers.h && \
+    ln -sf /usr/include/samba-4.0/ldb_module.h /home/user/wolfProvider/samba-4.0/ldb_module.h && \
+    ln -sf /usr/include/samba-4.0/ldb_version.h /home/user/wolfProvider/samba-4.0/ldb_version.h && \
+    ln -sf /usr/include/samba-4.0/ldb.h /usr/local/include/ldb.h && \
+    ln -sf /usr/include/samba-4.0/ldb_errors.h /usr/local/include/ldb_errors.h && \
+    ln -sf /usr/include/samba-4.0/ldb_handlers.h /usr/local/include/ldb_handlers.h && \
+    ln -sf /usr/include/samba-4.0/ldb_module.h /usr/local/include/ldb_module.h && \
+    ln -sf /usr/include/samba-4.0/ldb_version.h /usr/local/include/ldb_version.h
 
 # Switch to user
 USER user

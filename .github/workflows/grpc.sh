@@ -10,10 +10,10 @@ set -e
 set -x
 
 # Use stable version instead of specific commit
-GRPC_REF="master"
+GRPC_REF="v1.60.0"
 
 # Define base directories for cleaner paths
-WOLFPROV_DIR="/home/aidangarske/wolfProvider"
+WOLFPROV_DIR="/home/user/wolfProvider"
 WOLFSSL_INSTALL="$WOLFPROV_DIR/wolfssl-install"
 OPENSSL_INSTALL="$WOLFPROV_DIR/openssl-install"
 WOLFPROV_INSTALL="$WOLFPROV_DIR/wolfprov-install"
