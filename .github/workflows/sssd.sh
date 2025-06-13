@@ -13,7 +13,7 @@ SSSD_REF="2.9.1"
 # Define base directories for cleaner paths
 WOLFPROV_DIR="/home/user/wolfProvider"
 WOLFSSL_INSTALL="$WOLFPROV_DIR/wolfssl-install"
-OPENSSL_INSTALL="$WOLFPROV_DIR/usr"
+OPENSSL_INSTALL="$WOLFPROV_DIR/openssl-install"
 WOLFPROV_INSTALL="$WOLFPROV_DIR/wolfprov-install"
 
 # Go to wolfProvider directory
@@ -23,9 +23,6 @@ cd "$WOLFPROV_DIR"
 export LD_LIBRARY_PATH="${WOLFSSL_INSTALL}/lib:${OPENSSL_INSTALL}/lib64"
 export OPENSSL_CONF="${WOLFPROV_DIR}/provider-fips.conf"
 export OPENSSL_MODULES="${WOLFPROV_INSTALL}/lib"
-export PKG_CONFIG_PATH="${OPENSSL_INSTALL}/lib64/pkgconfig"
-export LDFLAGS="-L${OPENSSL_INSTALL}/lib64"
-export CPPFLAGS="-I${OPENSSL_INSTALL}/include"
 
 # Clone SSSD
 rm -rf sssd
@@ -41,7 +38,7 @@ autoreconf -ivf
 make -j$(nproc)
 
 # Run tests
-make check
+make check VERBOSE=1
 
 if [ $TEST_RESULT -eq 0 ]; then
   echo "Workflow completed successfully"

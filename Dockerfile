@@ -1,6 +1,7 @@
 # Dockerfile for wolfProvider testing
 # Supports: curl, nginx, grpc, ipmitool, net-snmp, openldap, openvpn, socat, sssd, stunnel
 FROM debian:bookworm
+
 # Install required dependencies
 RUN apt-get update -y && apt-get install -y \
     autoconf \
@@ -61,10 +62,25 @@ RUN apt-get update -y && apt-get install -y \
     python3-docutils \
     python3-impacket \
     python3-ldb \
+    python3-pytest \
+    python3-pytest-asyncio \
+    python3-pytest-cov \
+    python3-pytest-timeout \
     sudo \
     wget \
     zlib1g-dev \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Install Python 3.13 from source
+RUN cd /tmp && \
+    wget https://www.python.org/ftp/python/3.13.0/Python-3.13.0.tgz && \
+    tar xzf Python-3.13.0.tgz && \
+    cd Python-3.13.0 && \
+    ./configure --enable-optimizations && \
+    make -j$(nproc) && \
+    make altinstall && \
+    cd .. && \
+    rm -rf Python-3.13.0 Python-3.13.0.tgz
 
 # Install Perl dependencies
 RUN cpanm -n Proc::Find Net::SSLeay IO::Socket::SSL
@@ -73,7 +89,8 @@ RUN cpanm -n Proc::Find Net::SSLeay IO::Socket::SSL
 ARG HOST_UID
 ARG HOST_GID
 RUN groupadd -g ${HOST_GID} user && \
-    useradd -u ${HOST_UID} -g ${HOST_GID} -m user
+    useradd -u ${HOST_UID} -g ${HOST_GID} -m user && \
+    echo "user ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
 
 # Create ldb.h symlink before switching to user
 RUN mkdir -p /home/user/wolfProvider/samba-4.0 && \
