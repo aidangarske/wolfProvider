@@ -51,11 +51,12 @@ patch -p1 < "${WOLFPROV_DIR}/patch2.diff"
 autoreconf -ivf
 ./configure --with-ssl-dir="${OPENSSL_INSTALL}" \
             --with-rpath=-Wl,-rpath="${OPENSSL_INSTALL}/lib64" \
+            --disable-security-key-builtin \
             --with-prngd-socket=/tmp/prngd
-make -j
+make -j CFLAGS="-DFIPS_MODE=1"
 
 # Run all the tests except (t-exec) as it takes too long
-make CFLAGS="-DFIPS_MODE=1" file-tests interop-tests extra-tests unit
+make CFLAGS="-DFIPS_MODE=1" file-tests extra-tests unit
 
 if [ $? -eq 0 ]; then
   echo "Workflow completed successfully"

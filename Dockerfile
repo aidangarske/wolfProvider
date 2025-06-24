@@ -12,11 +12,13 @@ RUN apt-get update -y && apt-get install -y \
     clang \
     curl \
     cmake \
+    check \
     cpanminus \
     git \
     libcap-dev \
     libcap-ng-dev \
     libc++-dev \
+    libjansson-dev \
     libldb-dev \
     libldb2 \
     liblz4-dev \
