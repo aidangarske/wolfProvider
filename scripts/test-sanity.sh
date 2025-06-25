@@ -19,7 +19,7 @@
 #
 # This script provides simple sanity checks to make sure the provider is working
 # You can set WOLFPROV_FIPS=1 to run the tests in FIPS mode. You can also set 
-# env varaibles before running to build with like WOLFSSL_TAG and OPENSSL_TAG etc. 
+# env variables before running to build with like WOLFSSL_TAG and OPENSSL_TAG etc. 
 
 SET_PRE=$( set )
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"

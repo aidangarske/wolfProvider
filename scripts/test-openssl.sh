@@ -18,7 +18,7 @@
 # along with wolfProvider. If not, see <http://www.gnu.org/licenses/>.
 #
 # You can set WOLFPROV_FIPS=1 to run the tests in FIPS mode. You can also set 
-# env varaibles before running to build with like WOLFSSL_TAG and OPENSSL_TAG etc. 
+# env variables before running to build with like WOLFSSL_TAG and OPENSSL_TAG etc.
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 NUMCPU=${NUMCPU:-8}
