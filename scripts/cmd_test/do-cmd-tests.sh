@@ -22,9 +22,16 @@
 
 # Get the force fail parameter
 FORCE_FAIL=0
-if [ "$1" = "WOLFPROV_FORCE_FAIL=1" ]; then
-    FORCE_FAIL=1
-fi
+FIPS_MODE=0
+
+# Check for parameters (order doesn't matter)
+for param in "$1" "$2"; do
+    if [ "$param" = "WOLFPROV_FORCE_FAIL=1" ]; then
+        FORCE_FAIL=1
+    elif [ "$param" = "FIPS_MODE=1" ]; then
+        FIPS_MODE=1
+    fi
+done
 
 # Get the directory where this script is located
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
@@ -57,30 +64,42 @@ echo "Using wolfSSL version: ${WOLFSSL_TAG}"
 
 # Run the hash comparison test
 echo -e "\n=== Running Hash Comparison Test ==="
-"${REPO_ROOT}/scripts/cmd_test/hash-cmd-test.sh" "$1"
+"${REPO_ROOT}/scripts/cmd_test/hash-cmd-test.sh" "$1" "$2"
 HASH_RESULT=$?
 
 # Run the AES comparison test
 echo -e "\n=== Running AES Comparison Test ==="
-"${REPO_ROOT}/scripts/cmd_test/aes-cmd-test.sh" "$1"
+"${REPO_ROOT}/scripts/cmd_test/aes-cmd-test.sh" "$1" "$2"
 AES_RESULT=$?
 
 # Run the RSA key generation test
 echo -e "\n=== Running RSA Key Generation Test ==="
-"${REPO_ROOT}/scripts/cmd_test/rsa-cmd-test.sh" "$1"
+"${REPO_ROOT}/scripts/cmd_test/rsa-cmd-test.sh" "$1" "$2"
 RSA_RESULT=$?
 
 # Run the ECC key generation test
 echo -e "\n=== Running ECC Key Generation Test ==="
-"${REPO_ROOT}/scripts/cmd_test/ecc-cmd-test.sh" "$1"
+"${REPO_ROOT}/scripts/cmd_test/ecc-cmd-test.sh" "$1" "$2"
 ECC_RESULT=$?
 
 # Check results
 if [ $HASH_RESULT -eq 0 ] && [ $AES_RESULT -eq 0 ] && [ $RSA_RESULT -eq 0 ] && [ $ECC_RESULT -eq 0 ]; then
-    echo -e "\n=== All Command-Line Tests Passed $1 ==="
+    echo -e "\n=== All Command-Line Tests Passed ==="
+    if [ $FORCE_FAIL -eq 1 ]; then
+        echo "Force fail mode was enabled"
+    fi
+    if [ $FIPS_MODE -eq 1 ]; then
+        echo "FIPS mode was enabled"
+    fi
     exit 0
 else
-    echo -e "\n=== Command-Line Tests Failed $1 ==="
+    echo -e "\n=== Command-Line Tests Failed ==="
+    if [ $FORCE_FAIL -eq 1 ]; then
+        echo "Force fail mode was enabled"
+    fi
+    if [ $FIPS_MODE -eq 1 ]; then
+        echo "FIPS mode was enabled"
+    fi
     echo "Hash Test Result: $HASH_RESULT (0=success)"
     echo "AES Test Result: $AES_RESULT (0=success)"
     echo "RSA Test Result: $RSA_RESULT (0=success)"
