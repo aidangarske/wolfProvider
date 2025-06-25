@@ -19,17 +19,21 @@
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335, USA
+# 
+# Scripts can be called with WOLFPROV_FORCE_FAIL=1 and WOLFPROV_FIPS=1 to force
+# a failure or run in FIPS mode. Order doesn't matter. If no parameters are
+# provided, the tests will run normally.
 
 # Get the force fail parameter
 FORCE_FAIL=0
-FIPS_MODE=0
+FIPS=0
 
 # Check for parameters (order doesn't matter)
 for param in "$1" "$2"; do
     if [ "$param" = "WOLFPROV_FORCE_FAIL=1" ]; then
         FORCE_FAIL=1
-    elif [ "$param" = "FIPS_MODE=1" ]; then
-        FIPS_MODE=1
+    elif [ "$param" = "WOLFPROV_FIPS=1" ]; then
+        FIPS=1
     fi
 done
 
@@ -88,7 +92,7 @@ if [ $HASH_RESULT -eq 0 ] && [ $AES_RESULT -eq 0 ] && [ $RSA_RESULT -eq 0 ] && [
     if [ $FORCE_FAIL -eq 1 ]; then
         echo "Force fail mode was enabled"
     fi
-    if [ $FIPS_MODE -eq 1 ]; then
+    if [ $FIPS -eq 1 ]; then
         echo "FIPS mode was enabled"
     fi
     exit 0
@@ -97,7 +101,7 @@ else
     if [ $FORCE_FAIL -eq 1 ]; then
         echo "Force fail mode was enabled"
     fi
-    if [ $FIPS_MODE -eq 1 ]; then
+    if [ $FIPS -eq 1 ]; then
         echo "FIPS mode was enabled"
     fi
     echo "Hash Test Result: $HASH_RESULT (0=success)"

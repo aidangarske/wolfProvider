@@ -40,7 +40,7 @@ init_wolfprov
 FAIL=0
 FORCE_FAIL=0
 FORCE_FAIL_PASSED=0
-FIPS_MODE=0
+FIPS=0
 
 # Check for parameters (order doesn't matter)
 for param in "$1" "$2"; do
@@ -48,8 +48,8 @@ for param in "$1" "$2"; do
         export WOLFPROV_FORCE_FAIL=1
         FORCE_FAIL=1
         echo -e "\nForce fail mode enabled for AES tests"
-    elif [ "$param" = "FIPS_MODE=1" ]; then
-        FIPS_MODE=1
+    elif [ "$param" = "WOLFPROV_FIPS=1" ]; then
+        FIPS=1
         echo -e "\nFIPS mode enabled for AES tests"
     fi
 done
@@ -86,8 +86,9 @@ check_force_fail() {
 # Arrays for test configurations
 KEY_SIZES=("128" "192" "256")
 # Only include modes supported by wolfProvider
-if [ $FIPS_MODE -eq 1 ]; then
+if [ $FIPS -eq 1 ]; then
     MODES=("ecb" "cbc" "ctr")
+    echo "FIPS mode detected - excluding CFB mode"
 else
     MODES=("ecb" "cbc" "ctr" "cfb")
 fi
