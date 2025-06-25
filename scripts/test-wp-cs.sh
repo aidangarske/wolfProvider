@@ -24,7 +24,6 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 NUMCPU=${NUMCPU:-8}
 WOLFPROV_DEBUG=${WOLFPROV_DEBUG:-0}
 WOLFPROV_FIPS=${WOLFPROV_FIPS:-0}
-WOLFPROV_SKIP_REBUILD=${WOLFPROV_SKIP_REBUILD:-0}
 
 source ${SCRIPT_DIR}/utils-wolfprovider.sh
 source ${SCRIPT_DIR}/utils-openssl.sh
