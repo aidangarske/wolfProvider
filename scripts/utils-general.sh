@@ -48,3 +48,75 @@ check_folder_age() {
     fi
 }
 
+clean_rebuild() {
+    # Function to completely clean all build artifacts and source directories
+    # Usage: clean_rebuild [--force] [--keep-sources]
+    #   --force: Skip confirmation prompt
+    #   --keep-sources: Keep source directories, only remove install directories
+    
+    local force=0
+    local keep_sources=0
+    
+    # Parse arguments
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            --force)
+                force=1
+                shift
+                ;;
+            --keep-sources)
+                keep_sources=1
+                shift
+                ;;
+            *)
+                echo "Unknown option: $1"
+                echo "Usage: clean_rebuild [--force] [--keep-sources]"
+                return 1
+                ;;
+        esac
+    done
+    
+    # Define directories to clean
+    local install_dirs=(
+        "${SCRIPT_DIR}/../openssl-install"
+        "${SCRIPT_DIR}/../wolfssl-install" 
+        "${SCRIPT_DIR}/../wolfprov-install"
+    )
+    
+    local source_dirs=(
+        "${SCRIPT_DIR}/../openssl-source"
+        "${SCRIPT_DIR}/../wolfssl-source"
+    )
+    
+    # Confirm unless --force is used
+    if [ $force -eq 0 ]; then
+        read -p "Clean rebuild? (y/N): " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            return 0
+        fi
+    fi
+    
+    # Remove install directories
+    for dir in "${install_dirs[@]}"; do
+        [ -d "$dir" ] && rm -rf "$dir"
+    done
+    
+    # Handle source directories
+    if [ $keep_sources -eq 0 ]; then
+        # Remove source directories completely
+        for dir in "${source_dirs[@]}"; do
+            [ -d "$dir" ] && rm -rf "$dir"
+        done
+    else
+        # Clean source directories with git clean
+        for dir in "${source_dirs[@]}"; do
+            if [ -d "$dir" ] && [ -d "$dir/.git" ]; then
+                pushd "$dir" > /dev/null
+                git clean -xdf > /dev/null 2>&1
+                popd > /dev/null
+            fi
+        done
+    fi
+}
+

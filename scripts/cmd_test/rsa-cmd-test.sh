@@ -25,7 +25,24 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 REPO_ROOT="$( cd "${SCRIPT_DIR}/../.." &> /dev/null && pwd )"
 UTILS_DIR="${REPO_ROOT}/scripts"
 export LOG_FILE="${SCRIPT_DIR}/rsa-test.log"
-touch "$LOG_FILE"
+
+# Clear previous log and create new one
+echo "=== RSA Test Started at $(date) ===" > "$LOG_FILE"
+echo "Script: $0" >> "$LOG_FILE"
+echo "Args: $@" >> "$LOG_FILE"
+echo "Working directory: $(pwd)" >> "$LOG_FILE"
+echo "" >> "$LOG_FILE"
+
+# Function to log messages
+log_msg() {
+    echo "$1" | tee -a "$LOG_FILE"
+    sync  # Force write to disk
+}
+
+# Redirect all output to log file AND console
+exec > >(tee -a "$LOG_FILE") 2>&1
+
+log_msg "=== RSA Test Started at $(date) ==="
 
 # Source wolfProvider utilities
 source "${UTILS_DIR}/utils-general.sh"
@@ -47,10 +64,11 @@ for param in "$1" "$2"; do
     if [ "$param" = "WOLFPROV_FORCE_FAIL=1" ]; then
         export WOLFPROV_FORCE_FAIL=1
         FORCE_FAIL=1
-        echo -e "\nForce fail mode enabled for RSA tests"
+        echo -e "\nForce fail mode enabled"
     elif [ "$param" = "WOLFPROV_FIPS=1" ]; then
         FIPS=1
-        echo -e "\nFIPS mode enabled for RSA tests"
+        export WOLFSSL_ISFIPS=1
+        echo -e "\nFIPS mode enabled"
     fi
 done
 
@@ -69,6 +87,9 @@ echo "Environment variables:"
 echo "OPENSSL_MODULES: ${OPENSSL_MODULES}"
 echo "LD_LIBRARY_PATH: ${LD_LIBRARY_PATH}"
 echo "OPENSSL_BIN: ${OPENSSL_BIN}"
+echo "OPENSSL_CONF: ${OPENSSL_CONF}"
+echo "WOLFPROV_CONFIG: ${WOLFPROV_CONFIG}"
+echo "WOLFPROV_PATH: ${WOLFPROV_PATH}"
 
 # Create test directories
 mkdir -p rsa_outputs
@@ -80,14 +101,22 @@ echo "This is test data for RSA signing and verification." > rsa_outputs/test_da
 use_default_provider() {
     unset OPENSSL_MODULES
     unset OPENSSL_CONF
+    export PROVIDER_ARGS="-provider default"
+    export PROVIDER_NAME="default"
+    $OPENSSL_BIN list -providers
     echo "Switched to default provider"
+    echo "PROVIDER_ARGS: ${PROVIDER_ARGS}"
 }
 
 # Function to use wolf provider only
 use_wolf_provider() {
     export OPENSSL_MODULES=$WOLFPROV_PATH
     export OPENSSL_CONF=${WOLFPROV_CONFIG}
+    export PROVIDER_ARGS="-provider-path $WOLFPROV_PATH -provider libwolfprov"
+    export PROVIDER_NAME="wolfProvider"
+    $OPENSSL_BIN list -providers
     echo "Switched to wolfProvider"
+    echo "PROVIDER_ARGS: ${PROVIDER_ARGS}"
 }
 
 # Helper function to handle force fail checks
@@ -217,13 +246,6 @@ test_sign_verify_pkeyutl() {
     local provider_args=$3
     local sign_func=$4
     local verify_func=$5
-
-    # Print the provider args
-    if [ "$provider_args" = "-provider default" ]; then
-        provider_name="default"
-    else
-        provider_name="wolfProvider"
-    fi
     
     # Handle different key naming conventions
     local key_prefix="${key_type}"
@@ -235,11 +257,11 @@ test_sign_verify_pkeyutl() {
     local pub_key_file="rsa_outputs/${key_prefix}_${key_size}_pub.pem"
     local data_file="rsa_outputs/test_data.txt"
     
-    echo -e "\n=== Testing ${key_type} (${key_size}) Sign/Verify with pkeyutl Using ${provider_name} ==="
+    echo -e "\n=== Testing ${key_type} (${key_size}) Sign/Verify with pkeyutl Using ${PROVIDER_NAME} ==="
     
     # Test 1: Sign and verify with OpenSSL default
     use_default_provider
-    echo "Test 1: Sign and verify with OpenSSL default (${key_type})"
+    echo "Test 1: Sign and verify with OpenSSL ${PROVIDER_NAME} (${key_type})"
     local default_sig_file="rsa_outputs/${key_prefix}_${key_size}_default_sig.bin"
     if $sign_func "$key_file" "$data_file" "$default_sig_file" "$provider_args"; then
         echo "[PASS] Signing with OpenSSL default successful"
@@ -258,7 +280,7 @@ test_sign_verify_pkeyutl() {
 
     # Test 2: Sign and verify with wolfProvider
     use_wolf_provider
-    echo "Test 2: Sign and verify with wolfProvider (${key_type})"
+    echo "Test 2: Sign and verify with ${PROVIDER_NAME} (${key_type})"
     local wolf_sig_file="rsa_outputs/${key_prefix}_${key_size}_wolf_sig.bin"
     if $sign_func "$key_file" "$data_file" "$wolf_sig_file" "$provider_args"; then
         echo "[PASS] Signing with wolfProvider successful"
@@ -308,8 +330,23 @@ generate_and_test_key() {
     local key_size=$2
     local provider_args=$3
     local output_file="rsa_outputs/${key_type}_${key_size}.pem"
+
+    # Make sure we are using the correct provider to keygen
+    if [ "$provider_args" = "-provider default" ]; then
+        use_default_provider
+        echo "Using default provider"
+    else
+        use_wolf_provider
+        echo "Using wolfProvider"
+    fi
+    # Get the provider name
+    if [ "$provider_args" = "-provider default" ]; then
+        provider_name="default"
+    else
+        provider_name="wolfProvider"
+    fi
     
-    echo -e "\n=== Testing ${key_type} Key Generation (${key_size}) with provider default ==="
+    echo -e "\n=== Testing ${key_type} Key Generation (${key_size}) with ${provider_name} ==="
     echo "Generating ${key_type} key (${key_size})..."
     if [ "$key_type" = "RSA-PSS" ]; then
         # For RSA-PSS, specify all parameters
@@ -353,16 +390,16 @@ generate_and_test_key() {
     validate_key "$key_type" "$key_size" "$output_file" "$provider_args"
 
     # Try to use the key with provider default
-    echo -e "\n=== Testing ${key_type} Key (${key_size}) with provider default ==="
-    echo "Checking if provider default can use the key..."
+    echo -e "\n=== Testing ${key_type} Key (${key_size}) with ${provider_name} ==="
+    echo "Checking if ${provider_name} can use the key..."
     
     # Try to use the key with wolfProvider (just check if it loads)
     if $OPENSSL_BIN pkey -in "$output_file" -check \
         ${provider_args} -passin pass: >/dev/null; then
-        echo "[PASS] provider default can use ${key_type} key (${key_size})"
+        echo "[PASS] ${provider_name} can use ${key_type} key (${key_size})"
         check_force_fail
     else
-        echo "[FAIL] provider default cannot use ${key_type} key (${key_size})"
+        echo "[FAIL] ${provider_name} cannot use ${key_type} key (${key_size})"
         FAIL=1
     fi
 }

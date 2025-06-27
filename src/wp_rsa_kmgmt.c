@@ -33,6 +33,7 @@
 #include <wolfprovider/wp_fips.h>
 
 #include <wolfssl/wolfcrypt/asn.h>
+#include <wolfssl/wolfcrypt/error-crypt.h>
 
 #ifdef WP_HAVE_RSA
 
@@ -394,7 +395,15 @@ int wp_rsa_check_key_size(wp_Rsa* rsa, int allow1024)
  */
 static int wp_rsagen_check_key_size(wp_RsaGenCtx* rsagen)
 {
-    return wp_rsa_check_key_size_int((int)rsagen->bits, 0);
+    printf("[RSA_SIZE_CHECK] ===== ENTERING wp_rsagen_check_key_size =====\n");
+    printf("[RSA_SIZE_CHECK] Context: %p\n", (void*)rsagen);
+    printf("[RSA_SIZE_CHECK] Key size: %zu bits\n", rsagen->bits);
+
+    int result = wp_rsa_check_key_size_int((int)rsagen->bits, 0);
+
+    printf("[RSA_SIZE_CHECK] ===== EXITING wp_rsagen_check_key_size =====\n");
+    printf("[RSA_SIZE_CHECK] Result: %d\n", result);
+    return result;
 }
 
 /**
@@ -441,42 +450,71 @@ int wp_rsa_get_pss_params_set(wp_Rsa* rsa)
  */
 static wp_Rsa* wp_rsa_base_new(WOLFPROV_CTX* provCtx, int type)
 {
+    printf("[RSA_NEW] ===== ENTERING wp_rsa_base_new =====\n");
+    printf("[RSA_NEW] Provider context: %p\n", (void*)provCtx);
+    printf("[RSA_NEW] Type: %d\n", type);
+
     wp_Rsa* rsa = NULL;
 
+    printf("[RSA_NEW] Checking wolfssl_prov_is_running()=%d\n", wolfssl_prov_is_running());
     if (wolfssl_prov_is_running()) {
+        printf("[RSA_NEW] Allocating RSA key object...\n");
         rsa = (wp_Rsa*)OPENSSL_zalloc(sizeof(*rsa));
+        printf("[RSA_NEW] Allocation result: %p\n", (void*)rsa);
+    } else {
+        printf("[RSA_NEW] ❌ Provider not running\n");
     }
+
     if (rsa != NULL) {
         int ok = 1;
         int rc;
 
+        printf("[RSA_NEW] Initializing wolfSSL RSA key...\n");
         rc = wc_InitRsaKey(&rsa->key, NULL);
+        printf("[RSA_NEW] wc_InitRsaKey returned: %d\n", rc);
         if (rc != 0) {
+            printf("[RSA_NEW] ❌ RSA key initialization failed\n");
             ok = 0;
+        } else {
+            printf("[RSA_NEW] ✓ RSA key initialization successful\n");
         }
 
     #ifndef SINGLE_THREADED
         if (ok) {
+            printf("[RSA_NEW] Initializing mutex...\n");
             rc = wc_InitMutex(&rsa->mutex);
+            printf("[RSA_NEW] wc_InitMutex returned: %d\n", rc);
             if (rc != 0) {
+                printf("[RSA_NEW] ❌ Mutex initialization failed\n");
                 wc_FreeRsaKey(&rsa->key);
                 ok = 0;
+            } else {
+                printf("[RSA_NEW] ✓ Mutex initialization successful\n");
             }
         }
+    #else
+        printf("[RSA_NEW] Single-threaded build, skipping mutex\n");
     #endif
 
         if (ok) {
+            printf("[RSA_NEW] Setting RSA key properties...\n");
             rsa->provCtx = provCtx;
             rsa->type = type;
             rsa->refCnt = 1;
+            printf("[RSA_NEW] ✓ RSA key properties set: type=%d, refCnt=%d\n", rsa->type, rsa->refCnt);
         }
 
         if (!ok) {
+            printf("[RSA_NEW] ❌ RSA key creation failed, cleaning up\n");
             OPENSSL_free(rsa);
             rsa = NULL;
+        } else {
+            printf("[RSA_NEW] ✓ RSA key creation successful\n");
         }
     }
 
+    printf("[RSA_NEW] ===== EXITING wp_rsa_base_new =====\n");
+    printf("[RSA_NEW] Final result: rsa=%p\n", (void*)rsa);
     return rsa;
 }
 
@@ -1098,7 +1136,7 @@ static int wp_rsa_import_key_data(wp_Rsa* rsa, const OSSL_PARAM params[],
 
     /* N and E params are the only ones required by OSSL, so match that.
      * See ossl_rsa_fromdata() and RSA_set0_key() in OpenSSL. */
-    if (OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_RSA_N) == NULL || 
+    if (OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_RSA_N) == NULL ||
         OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_RSA_E) == NULL) {
         WOLFPROV_MSG(WP_LOG_PK, "Param N or E is missing");
         ok = 0;
@@ -1114,13 +1152,13 @@ static int wp_rsa_import_key_data(wp_Rsa* rsa, const OSSL_PARAM params[],
             index = -1;
             for (j = 0; j < (int)ARRAY_SIZE(wp_rsa_param_key); j++) {
                 if (XSTRNCMP(p->key, wp_rsa_param_key[j], p->data_size) == 0) {
-                    index = j; 
+                    index = j;
                     break;
                 }
             }
             if (index < 0) {
                 /* Follow OSSL implementation and ignore irrelevant fields. */
-                WOLFPROV_MSG(WP_LOG_PK, "Unexpected param %s, skipping.", 
+                WOLFPROV_MSG(WP_LOG_PK, "Unexpected param %s, skipping.",
                     p->key);
                 continue;
             }
@@ -1399,39 +1437,73 @@ static const OSSL_PARAM* wp_rsa_export_types(int selection)
 static wp_RsaGenCtx* wp_rsa_base_gen_init(WOLFPROV_CTX* provCtx,
     int selection, const OSSL_PARAM params[], int type)
 {
+    printf("[RSA_INIT] ===== ENTERING wp_rsa_base_gen_init =====\n");
+    printf("[RSA_INIT] Provider context: %p\n", (void*)provCtx);
+    printf("[RSA_INIT] Selection: %d (0x%x)\n", selection, selection);
+    printf("[RSA_INIT] Type: %d\n", type);
+    printf("[RSA_INIT] Params: %p\n", (void*)params);
+
     wp_RsaGenCtx* ctx = NULL;
+
+    printf("[RSA_INIT] Checking wolfssl_prov_is_running()=%d\n", wolfssl_prov_is_running());
+    printf("[RSA_INIT] Checking selection & OSSL_KEYMGMT_SELECT_KEYPAIR=%d\n",
+           (selection & OSSL_KEYMGMT_SELECT_KEYPAIR) != 0);
 
     if (wolfssl_prov_is_running() &&
         ((selection & OSSL_KEYMGMT_SELECT_KEYPAIR) != 0)) {
+        printf("[RSA_INIT] ✓ Preconditions passed, allocating context\n");
         ctx = (wp_RsaGenCtx*)OPENSSL_zalloc(sizeof(*ctx));
+        printf("[RSA_INIT] Context allocation result: %p\n", (void*)ctx);
+    } else {
+        printf("[RSA_INIT] ❌ Preconditions failed\n");
     }
+
     if (ctx != NULL) {
         int ok = 1;
         int rc;
 
+        printf("[RSA_INIT] Initializing RNG...\n");
         rc = wc_InitRng_ex(&ctx->rng, NULL, INVALID_DEVID);
+        printf("[RSA_INIT] wc_InitRng_ex returned: %d\n", rc);
         if (rc != 0) {
+            printf("[RSA_INIT] ❌ RNG initialization failed\n");
             ok = 0;
+        } else {
+            printf("[RSA_INIT] ✓ RNG initialization successful\n");
         }
+
         if (ok) {
+            printf("[RSA_INIT] Setting context properties...\n");
             ctx->provCtx = provCtx;
             ctx->type    = type;
             /* Set defaults. */
             ctx->bits    = 2048;
             ctx->e       = WC_RSA_EXPONENT;
+            printf("[RSA_INIT] Default values set: bits=%zu, e=%zu\n", ctx->bits, ctx->e);
 
+            printf("[RSA_INIT] Setting parameters from params array...\n");
             if (!wp_rsa_gen_set_params(ctx, params)) {
+                printf("[RSA_INIT] ❌ Parameter setting failed\n");
                 wc_FreeRng(&ctx->rng);
                 ok = 0;
+            } else {
+                printf("[RSA_INIT] ✓ Parameters set successfully\n");
+                printf("[RSA_INIT] Final context: bits=%zu, e=%zu, type=%d\n",
+                       ctx->bits, ctx->e, ctx->type);
             }
         }
 
         if (!ok) {
+            printf("[RSA_INIT] ❌ Context initialization failed, cleaning up\n");
             OPENSSL_free(ctx);
             ctx = NULL;
+        } else {
+            printf("[RSA_INIT] ✓ Context initialization successful\n");
         }
     }
 
+    printf("[RSA_INIT] ===== EXITING wp_rsa_base_gen_init =====\n");
+    printf("[RSA_INIT] Final result: ctx=%p\n", (void*)ctx);
     return ctx;
 }
 
@@ -1451,25 +1523,59 @@ static wp_Rsa* wp_rsa_gen(wp_RsaGenCtx* ctx, OSSL_CALLBACK* cb, void* cbArg)
     (void)cb;
     (void)cbArg;
 
+    /* Add detailed logging for debugging random failures */
+    printf("[RSA_GEN] ===== ENTERING wp_rsa_gen =====\n");
+    printf("[RSA_GEN] Context: bits=%zu, e=%zu, type=%d\n", ctx->bits, ctx->e, ctx->type);
+    printf("[RSA_GEN] Provider context: %p\n", (void*)ctx->provCtx);
+    printf("[RSA_GEN] PSS params set: %d\n", ctx->pssDefSet);
+    if (ctx->pssDefSet) {
+        printf("[RSA_GEN] PSS hash type: %d, mgf: %d, salt len: %d\n",
+               ctx->pssParams.hashType, ctx->pssParams.mgf, ctx->pssParams.saltLen);
+    }
+
     if (wolfssl_prov_is_running() && wp_rsagen_check_key_size(ctx)) {
+        printf("[RSA_GEN] ✓ Preconditions passed\n");
+        printf("[RSA_GEN] Creating new RSA key object...\n");
         rsa = wp_rsa_base_new(ctx->provCtx, ctx->type);
         if (rsa != NULL) {
-            int rc = wc_MakeRsaKey(&rsa->key, (int)ctx->bits, ctx->e,
-                &ctx->rng);
+            printf("[RSA_GEN] ✓ RSA key object created successfully: %p\n", (void*)rsa);
+            printf("[RSA_GEN] Calling wc_MakeRsaKey with bits=%zu, e=%zu\n", ctx->bits, ctx->e);
+            printf("[RSA_GEN] RNG state: %p\n", (void*)&ctx->rng);
+
+            int rc = wc_MakeRsaKey(&rsa->key, (int)ctx->bits, ctx->e, &ctx->rng);
+            printf("[RSA_GEN] wc_MakeRsaKey returned: %d\n", rc);
+
             if (rc != 0) {
+                const char* error_str = wc_GetErrorString(rc);
+                printf("[RSA_GEN] ❌ wc_MakeRsaKey FAILED with error: %d (%s)\n", rc, error_str ? error_str : "Unknown error");
+                printf("[RSA_GEN] Error details: rc=%d, bits=%zu, e=%zu, type=%d\n", rc, ctx->bits, ctx->e, ctx->type);
+                printf("[RSA_GEN] Freeing failed RSA key object: %p\n", (void*)rsa);
                 wp_rsa_free(rsa);
                 rsa = NULL;
             }
             else {
+                printf("[RSA_GEN] ✓ wc_MakeRsaKey SUCCESS\n");
+                printf("[RSA_GEN] Setting RSA key properties...\n");
                 rsa->type      = ctx->type;
                 rsa->bits      = (int)ctx->bits;
                 rsa->hasPub    = 1;
                 rsa->hasPriv   = 1;
                 rsa->pssParams = ctx->pssParams;
+                printf("[RSA_GEN] ✓ RSA key properties set: type=%d, bits=%d, hasPub=%d, hasPriv=%d\n",
+                       rsa->type, rsa->bits, rsa->hasPub, rsa->hasPriv);
             }
+        } else {
+            printf("[RSA_GEN] ❌ Failed to create RSA key object\n");
+            printf("[RSA_GEN] wp_rsa_base_new returned NULL\n");
         }
+    } else {
+        printf("[RSA_GEN] ❌ Preconditions failed\n");
+        printf("[RSA_GEN] wolfssl_prov_is_running()=%d\n", wolfssl_prov_is_running());
+        printf("[RSA_GEN] wp_rsagen_check_key_size()=%d\n", wp_rsagen_check_key_size(ctx));
     }
 
+    printf("[RSA_GEN] ===== EXITING wp_rsa_gen =====\n");
+    printf("[RSA_GEN] Final result: rsa=%p, success=%d\n", (void*)rsa, rsa != NULL);
     return rsa;
 }
 
@@ -1496,51 +1602,98 @@ static void wp_rsa_gen_cleanup(wp_RsaGenCtx* ctx)
  */
 static int wp_rsa_gen_set_params(wp_RsaGenCtx* ctx, const OSSL_PARAM params[])
 {
+    printf("[RSA_PARAMS] ===== ENTERING wp_rsa_gen_set_params =====\n");
+    printf("[RSA_PARAMS] Context: %p\n", (void*)ctx);
+    printf("[RSA_PARAMS] Params array: %p\n", (void*)params);
+
     int ok = 1;
     const OSSL_PARAM* p;
 
     if (params) {
+        printf("[RSA_PARAMS] Processing parameters array...\n");
+
         p = OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_RSA_BITS);
         if (p != NULL) {
+            printf("[RSA_PARAMS] Found RSA_BITS parameter: %p\n", (void*)p);
+            size_t old_bits = ctx->bits;
             if (!OSSL_PARAM_get_size_t(p, &ctx->bits)) {
+                printf("[RSA_PARAMS] ❌ Failed to get RSA_BITS value\n");
                 ok = 0;
+            } else {
+                printf("[RSA_PARAMS] ✓ RSA_BITS: %zu -> %zu\n", old_bits, ctx->bits);
+                if (!wp_rsagen_check_key_size(ctx)) {
+                    printf("[RSA_PARAMS] ❌ Key size check failed for %zu bits\n", ctx->bits);
+                    ok = 0;
+                } else if ((ctx->bits < RSA_MIN_SIZE) || (ctx->bits > RSA_MAX_SIZE)) {
+                    printf("[RSA_PARAMS] ❌ Key size %zu outside valid range [%d, %d]\n",
+                           ctx->bits, RSA_MIN_SIZE, RSA_MAX_SIZE);
+                    ERR_raise(ERR_LIB_PROV, PROV_R_KEY_SIZE_TOO_SMALL);
+                    ok = 0;
+                } else {
+                    printf("[RSA_PARAMS] ✓ Key size %zu is valid\n", ctx->bits);
+                }
             }
-            else if (!wp_rsagen_check_key_size(ctx)) {
-                ok = 0;
-            }
-            else if ((ctx->bits < RSA_MIN_SIZE) || (ctx->bits > RSA_MAX_SIZE)) {
-                ERR_raise(ERR_LIB_PROV, PROV_R_KEY_SIZE_TOO_SMALL);
-                ok = 0;
-            }
+        } else {
+            printf("[RSA_PARAMS] No RSA_BITS parameter found, using default: %zu\n", ctx->bits);
         }
+
         if (ok) {
             p = OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_RSA_PRIMES);
             if (p != NULL) {
+                printf("[RSA_PARAMS] Found RSA_PRIMES parameter: %p\n", (void*)p);
                 size_t primes;
-
                 if (!OSSL_PARAM_get_size_t(p, &primes)) {
+                    printf("[RSA_PARAMS] ❌ Failed to get RSA_PRIMES value\n");
                     ok = 0;
+                } else {
+                    printf("[RSA_PARAMS] ✓ RSA_PRIMES: %zu\n", primes);
+                    if (primes != 2) {
+                        printf("[RSA_PARAMS] ❌ Invalid number of primes: %zu (expected 2)\n", primes);
+                        ok = 0;
+                    } else {
+                        printf("[RSA_PARAMS] ✓ Number of primes is valid\n");
+                    }
                 }
-                else if (primes != 2) {
-                    ok = 0;
-                }
+            } else {
+                printf("[RSA_PARAMS] No RSA_PRIMES parameter found, using default (2)\n");
             }
         }
+
         if (ok) {
             p = OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_RSA_E);
-            if ((p != NULL) && (!OSSL_PARAM_get_size_t(p, &ctx->e))) {
-                ok = 0;
+            if (p != NULL) {
+                printf("[RSA_PARAMS] Found RSA_E parameter: %p\n", (void*)p);
+                size_t old_e = ctx->e;
+                if (!OSSL_PARAM_get_size_t(p, &ctx->e)) {
+                    printf("[RSA_PARAMS] ❌ Failed to get RSA_E value\n");
+                    ok = 0;
+                } else {
+                    printf("[RSA_PARAMS] ✓ RSA_E: %zu -> %zu\n", old_e, ctx->e);
+                }
+            } else {
+                printf("[RSA_PARAMS] No RSA_E parameter found, using default: %zu\n", ctx->e);
             }
         }
+
         if (ok && (ctx->type == RSA_FLAG_TYPE_RSASSAPSS)) {
+            printf("[RSA_PARAMS] Processing PSS parameters for RSA-PSS type...\n");
             if (!wp_rsa_pss_params_set_params(&ctx->pssParams, &ctx->pssDefSet,
                    params, ctx->provCtx->libCtx)) {
+                printf("[RSA_PARAMS] ❌ PSS parameter setting failed\n");
                 ok = 0;
+            } else {
+                printf("[RSA_PARAMS] ✓ PSS parameters set successfully\n");
+                printf("[RSA_PARAMS] PSS defaults set: %d\n", ctx->pssDefSet);
             }
+        } else if (ctx->type != RSA_FLAG_TYPE_RSASSAPSS) {
+            printf("[RSA_PARAMS] Skipping PSS parameters (type=%d, not RSA-PSS)\n", ctx->type);
         }
+    } else {
+        printf("[RSA_PARAMS] No parameters array provided\n");
     }
 
-    WOLFPROV_LEAVE(WP_LOG_PK, __FILE__ ":" WOLFPROV_STRINGIZE(__LINE__), ok);
+    printf("[RSA_PARAMS] ===== EXITING wp_rsa_gen_set_params =====\n");
+    printf("[RSA_PARAMS] Final result: ok=%d\n", ok);
     return ok;
 }
 
@@ -2163,22 +2316,17 @@ static int wp_rsa_decode_pki(wp_Rsa* rsa, unsigned char* data, word32 len)
     int rc;
     word32 idx = 0;
 
-    rc = wc_RsaPrivateKeyDecode(data, &idx, &rsa->key, len);
-    if (rc != 0) {
-        ok = 0;
-    }
-#if LIBWOLFSSL_VERSION_HEX < 0x05000000
-    if (!ok) {
-        idx = 0;
-        rc = wc_GetPkcs8TraditionalOffset(data, &idx, len);
-        if (rc >= 0) {
-            rc = wc_RsaPrivateKeyDecode(data, &idx, &rsa->key, len);
-            if (rc == 0) {
-                 ok = 1;
-            }
+    if (ok) {
+    #ifdef HAVE_PKCS8
+        /* skip PKCS8 header */
+        (void)wc_GetPkcs8TraditionalOffset((byte*)data, &idx, len);
+    #endif
+        rc = wc_RsaPrivateKeyDecode(data, &idx, &rsa->key, len);
+        if (rc == 0) {
+            ok = 1;
         }
     }
-#endif
+
     if (ok && !wp_rsa_determine_type(rsa, data, len)) {
         ok = 0;
     }
@@ -2348,12 +2496,14 @@ static int wp_rsa_decode(wp_RsaEncDecCtx* ctx, OSSL_CORE_BIO* cBio,
         ok = wp_read_der_bio(ctx->provCtx, cBio, &data, &len);
     }
     if (ok && (ctx->format == WP_ENC_FORMAT_SPKI)) {
+        printf("DEBUG: wp_rsa_decode using SPKI format (selection=0x%02x)\n", selection);
         if (!wp_rsa_decode_spki(rsa, data, len)) {
             ok = 0;
             decoded = 0;
         }
     }
     else if (ok && (ctx->format == WP_ENC_FORMAT_PKI)) {
+        printf("DEBUG: wp_rsa_decode using PKI format (selection=0x%02x)\n", selection);
         if (!wp_rsa_decode_pki(rsa, data, len)) {
 #ifdef WOLFSSL_ENCRYPTED_KEYS
             if (!wp_rsa_decode_enc_pki(rsa, data, len, pwCb, pwCbArg))
@@ -3288,6 +3438,9 @@ static int wp_rsa_spki_does_selection(WOLFPROV_CTX* provCtx, int selection)
         ok = (selection & OSSL_KEYMGMT_SELECT_PUBLIC_KEY) != 0;
     }
 
+    /* Debug: Log selection to understand why SPKI is chosen over PKI */
+    printf("DEBUG: wp_rsa_spki_does_selection called with selection=0x%02x, returning %d\n", selection, ok);
+
     WOLFPROV_LEAVE(WP_LOG_PK, __FILE__ ":" WOLFPROV_STRINGIZE(__LINE__), ok);
     return ok;
 }
@@ -3399,6 +3552,9 @@ static int wp_rsa_pki_does_selection(WOLFPROV_CTX* provCtx, int selection)
     else {
         ok = (selection & OSSL_KEYMGMT_SELECT_PRIVATE_KEY) != 0;
     }
+
+    /* Debug: Log selection to understand why PKI is not chosen */
+    printf("DEBUG: wp_rsa_pki_does_selection called with selection=0x%02x, returning %d\n", selection, ok);
 
     WOLFPROV_LEAVE(WP_LOG_PK, __FILE__ ":" WOLFPROV_STRINGIZE(__LINE__), ok);
     return ok;

@@ -95,6 +95,10 @@ if [ $HASH_RESULT -eq 0 ] && [ $AES_RESULT -eq 0 ] && [ $RSA_RESULT -eq 0 ] && [
     if [ $FIPS -eq 1 ]; then
         echo "FIPS mode was enabled"
     fi
+    echo "Hash Test Result: $HASH_RESULT (0=success)"
+    echo "AES Test Result: $AES_RESULT (0=success)"
+    echo "RSA Test Result: $RSA_RESULT (0=success)"
+    echo "ECC Test Result: $ECC_RESULT (0=success)"
     exit 0
 else
     echo -e "\n=== Command-Line Tests Failed ==="

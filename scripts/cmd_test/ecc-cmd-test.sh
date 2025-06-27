@@ -27,6 +27,24 @@ UTILS_DIR="${REPO_ROOT}/scripts"
 export LOG_FILE="${SCRIPT_DIR}/ecc-test.log"
 touch "$LOG_FILE"
 
+# Clear previous log and create new one
+echo "=== ECC Test Started at $(date) ===" > "$LOG_FILE"
+echo "Script: $0" >> "$LOG_FILE"
+echo "Args: $@" >> "$LOG_FILE"
+echo "Working directory: $(pwd)" >> "$LOG_FILE"
+echo "" >> "$LOG_FILE"
+
+# Function to log messages
+log_msg() {
+    echo "$1" | tee -a "$LOG_FILE"
+    sync  # Force write to disk
+}
+
+# Redirect all output to log file AND console
+exec > >(tee -a "$LOG_FILE") 2>&1
+
+log_msg "=== ECC Test Started at $(date) ==="
+
 # Source wolfProvider utilities
 source "${UTILS_DIR}/utils-general.sh"
 source "${UTILS_DIR}/utils-openssl.sh"
@@ -47,10 +65,10 @@ for param in "$1" "$2"; do
     if [ "$param" = "WOLFPROV_FORCE_FAIL=1" ]; then
         export WOLFPROV_FORCE_FAIL=1
         FORCE_FAIL=1
-        echo -e "\nForce fail mode enabled for AES tests"
+        echo -e "\nForce fail mode enabled"
     elif [ "$param" = "WOLFPROV_FIPS=1" ]; then
         FIPS=1
-        echo -e "\nFIPS mode enabled for AES tests"
+        echo -e "\nFIPS mode enabled"
     fi
 done
 
