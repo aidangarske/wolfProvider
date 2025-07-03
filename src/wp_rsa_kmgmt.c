@@ -2164,7 +2164,7 @@ static int wp_rsa_decode_pki(wp_Rsa* rsa, unsigned char* data, word32 len)
     word32 idx = 0;
 
     if (ok) {
-    #ifdef HAVE_PKCS8
+    #if defined(HAVE_PKCS8) && defined(HAVE_FIPS)
         /* skip PKCS8 header */
         (void)wc_GetPkcs8TraditionalOffset((byte*)data, &idx, len);
     #endif

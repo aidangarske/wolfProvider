@@ -572,7 +572,7 @@ int wp_cipher_from_params(const OSSL_PARAM params[], int* cipher,
     return ok;
 }
 
-#ifndef WOLFSSL_ENCRYPTED_KEYS
+#if !defined(WOLFSSL_ENCRYPTED_KEYS) && !defined(HAVE_FIPS)
 /*
  * wolfProvider version of EncryptedInfo.
  */
@@ -695,7 +695,7 @@ static int wp_BufferKeyEncrypt(wp_EncryptedInfo* info, byte* der, word32 derSz,
 
     return ret;
 }
-#endif /* WOLFSSL_ENCRYPTED_KEYS */
+#endif /* !defined(WOLFSSL_ENCRYPTED_KEYS) && !defined(HAVE_FIPS) */
 
 /**
  * Encrypt the PKCS #8 key.
