@@ -572,7 +572,8 @@ int wp_cipher_from_params(const OSSL_PARAM params[], int* cipher,
     return ok;
 }
 
-#if !defined(WOLFSSL_ENCRYPTED_KEYS) && !defined(HAVE_FIPS)
+#ifndef WOLFSSL_ENCRYPTED_KEYS
+#ifdef WP_HAVE_MD5
 /*
  * wolfProvider version of EncryptedInfo.
  */
@@ -695,7 +696,8 @@ static int wp_BufferKeyEncrypt(wp_EncryptedInfo* info, byte* der, word32 derSz,
 
     return ret;
 }
-#endif /* !defined(WOLFSSL_ENCRYPTED_KEYS) && !defined(HAVE_FIPS) */
+#endif /* WP_HAVE_MD5 */
+#endif /* WOLFSSL_ENCRYPTED_KEYS */
 
 /**
  * Encrypt the PKCS #8 key.
