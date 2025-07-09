@@ -21,6 +21,19 @@ WOLFPROV_INSTALL="$WOLFPROV_DIR/wolfprov-install"
 
 cd "$WOLFPROV_DIR"
 
+echo "[*] Cloning SSSD..."
+rm -rf sssd
+git clone --branch=${SSSD_REF} https://github.com/SSSD/sssd.git
+cd sssd
+git checkout $SSSD_REF
+
+echo "[*] Building SSSD with wolfProvider..."
+# Configure and build SSSD with wolfProvider
+autoreconf -ivf
+./configure --without-samba --disable-cifs-idmap-plugin \
+    --without-nfsv4-idmapd-plugin --with-oidc-child=no
+make -j
+
 # Source environment setup if available
 if [ -f "scripts/env-setup" ]; then
     echo "Setting up environment..."
@@ -34,38 +47,7 @@ export OPENSSL_MODULES="${WOLFPROV_INSTALL}/lib"
 export PKG_CONFIG_PATH="${OPENSSL_INSTALL}/lib64/pkgconfig"
 export LDFLAGS="-L${OPENSSL_INSTALL}/lib64"
 export CPPFLAGS="-I${OPENSSL_INSTALL}/include"
-
-echo "[*] Installing dependencies..."
-# Don't prompt for anything
-export DEBIAN_FRONTEND=noninteractive
-apt-get update
-apt-get install -y build-essential autoconf libldb-dev \
-    libldb2 python3-ldb bc libcap-dev libutf8proc-dev
-
-echo "[*] Setting up environment..."
-ln -s samba-4.0/ldb.h /usr/include/ldb.h
-ln -s samba-4.0/ldb_errors.h /usr/include/ldb_errors.h
-ln -s samba-4.0/ldb_handlers.h /usr/include/ldb_handlers.h
-ln -s samba-4.0/ldb_module.h /usr/include/ldb_module.h
-ln -s samba-4.0/ldb_version.h /usr/include/ldb_version.h
-
-echo "[*] Cloning SSSD..."
-git clone https://github.com/SSSD/sssd.git
-cd sssd
-git checkout $SSSD_REF
-
-echo "[*] Building SSSD with wolfProvider..."
-# Configure and build SSSD with wolfProvider
-autoreconf -ivf
-./configure --without-samba --disable-cifs-idmap-plugin \
-    --without-nfsv4-idmapd-plugin --with-oidc-child=no
-make -j
-
-echo "[*] Running tests..."
-# Set environment variables
-export LD_LIBRARY_PATH="$WOLFSSL_INSTALL/lib:$OPENSSL_INSTALL/lib64"
-export OPENSSL_CONF="$WOLFPROV_DIR/provider.conf"
-export OPENSSL_MODULES="$WOLFPROV_INSTALL/lib"
+export PATH="${OPENSSL_INSTALL}/bin:${PATH}"
 
 echo "Checking OpenSSL providers:"
 $OPENSSL_INSTALL/bin/openssl list -providers | tee provider-list.log
