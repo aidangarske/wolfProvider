@@ -1,0 +1,121 @@
+FROM quay.io/sssd/ci-client-devel:ubuntu-latest
+
+# Install dependencies
+RUN apt-get update -y && apt-get install -y \
+    build-essential \
+    autoconf \
+    autoconf-archive \
+    automake \
+    autotools-dev \
+    bc \
+    bind9utils \
+    clang \
+    cmake \
+    cpanminus \
+    curl \
+    dnsutils \
+    docbook-xml \
+    docbook-xsl \
+    gettext \
+    gettext-base \
+    autopoint \
+    git \
+    libc-ares-dev \
+    libcap-dev \
+    libcap-ng-dev \
+    libc++-dev \
+    libcollection-dev \
+    libcmocka-dev \
+    libdbus-1-dev \
+    libdbus-glib-1-dev \
+    libdhash-dev \
+    libini-config-dev \
+    libjansson-dev \
+    libkeyutils-dev \
+    libkrb5-dev \
+    libkrad-dev \
+    libldap2-dev \
+    libldb-dev \
+    libldb2 \
+    liblz4-dev \
+    liblzo2-dev \
+    libnl-genl-3-200 \
+    libnl-genl-3-dev \
+    libnss3-dev \
+    libnss-wrapper \
+    libp11-kit-dev \
+    libpam0g-dev \
+    libpcre2-dev \
+    libpcre3-dev \
+    libperl-dev \
+    libpopt-dev \
+    libpsl-dev \
+    libpsl5 \
+    libreadline-dev \
+    libsasl2-dev \
+    libseccomp-dev \
+    libselinux1-dev \
+    libsemanage-dev \
+    libssl-dev \
+    libsystemd-dev \
+    libtalloc-dev \
+    libtdb-dev \
+    libtevent-dev \
+    libtool \
+    libunistring-dev \
+    libutf8proc-dev \
+    libuuid1 \
+    libwrap0-dev \
+    libxml2-dev \
+    libxml2-utils \
+    linux-libc-dev \
+    m4 \
+    make \
+    man2html \
+    nghttp2 \
+    net-tools \
+    perl \
+    pkg-config \
+    python3 \
+    python3-cryptography \
+    python3-dateutil \
+    python3-dev \
+    python3-docutils \
+    python3-gssapi \
+    python3-impacket \
+    python3-ldap \
+    python3-ldb \
+    python3-requests \
+    python3-requests-kerberos \
+    python3-setuptools \
+    python3-six \
+    bind9utils \
+    bind9-dnsutils \
+    samba-dev \
+    sudo \
+    uuid-dev \
+    wget \
+    xsltproc \
+    xml-core \
+    zlib1g-dev \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Install Perl dependencies
+RUN cpanm -n Proc::Find Net::SSLeay IO::Socket::SSL
+
+# Create ldb.h symlinks
+RUN ln -sf /usr/include/samba-4.0/ldb.h /usr/include/ldb.h && \
+    ln -sf /usr/include/samba-4.0/ldb_errors.h /usr/include/ldb_errors.h && \
+    ln -sf /usr/include/samba-4.0/ldb_handlers.h /usr/include/ldb_handlers.h && \
+    ln -sf /usr/include/samba-4.0/ldb_module.h /usr/include/ldb_module.h && \
+    ln -sf /usr/include/samba-4.0/ldb_version.h /usr/include/ldb_version.h
+
+# Create user with specific UID/GID
+ARG HOST_UID
+ARG HOST_GID
+RUN groupadd -g ${HOST_GID} user && \
+    useradd -u ${HOST_UID} -g ${HOST_GID} -m user
+
+# Switch to user
+USER user
+WORKDIR /home/user
