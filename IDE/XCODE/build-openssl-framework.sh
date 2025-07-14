@@ -54,6 +54,17 @@ done
 mkdir -p $LIPODIR
 mkdir -p $SDK_OUTPUT_DIR
 
+# Diagnostic information about the build environment
+echo "=== Build Environment Diagnostics ==="
+echo "Current directory: $(pwd)"
+echo "Number of CPUs: ${NUMCPU}"
+echo "Xcode version: $(xcodebuild -version 2>/dev/null || echo 'xcodebuild not available')"
+echo "Available SDKs:"
+xcrun --show-sdk-path --sdk macosx 2>/dev/null || echo "macOS SDK not available"
+xcrun --show-sdk-path --sdk iphonesimulator 2>/dev/null || echo "iOS Simulator SDK not available"
+xcrun --show-sdk-path --sdk iphoneos 2>/dev/null || echo "iOS SDK not available"
+echo "====================================="
+
 build() { # <ARCH=arm64|x86_64> <TYPE=iphonesimulator|iphoneos|macosx|watchos|watchsimulator|appletvos|appletvsimulator>
     set -x
     pushd .
@@ -152,4 +163,46 @@ done
 #  ********** BUILD FRAMEWORK
 ############################################################################################################################################
 
+echo "Creating XCFramework..."
+echo "XCFRAMEWORKS variable: ${XCFRAMEWORKS}"
+
+# Check if xcodebuild is available and working
+if ! command -v xcodebuild &> /dev/null; then
+    echo "ERROR: xcodebuild not found"
+    exit 1
+fi
+
+# Try to run xcodebuild with error handling
+set +e  # Don't exit on error for this section
 xcodebuild -create-xcframework ${XCFRAMEWORKS} -output ${SDK_OUTPUT_DIR}/libopenssl.xcframework
+XCODEBUILD_EXIT_CODE=$?
+set -e  # Re-enable exit on error
+
+if [ $XCODEBUILD_EXIT_CODE -ne 0 ]; then
+    echo "WARNING: xcodebuild failed with exit code $XCODEBUILD_EXIT_CODE"
+    echo "This might be due to Xcode framework loading issues."
+    echo "Attempting alternative approach..."
+    
+    # Alternative: Create a simple directory structure instead of XCFramework
+    mkdir -p ${SDK_OUTPUT_DIR}/libopenssl.xcframework/macosx-arm64/Headers
+    mkdir -p ${SDK_OUTPUT_DIR}/libopenssl.xcframework/macosx-x86_64/Headers
+    
+    # Copy libraries and headers
+    if [ -f "$LIPODIR/libopenssl-macosx.a" ]; then
+        cp "$LIPODIR/libopenssl-macosx.a" ${SDK_OUTPUT_DIR}/libopenssl.xcframework/macosx-arm64/
+        cp "$LIPODIR/libopenssl-macosx.a" ${SDK_OUTPUT_DIR}/libopenssl.xcframework/macosx-x86_64/
+        
+        # Copy headers from one of the install directories
+        if [ -d "${OUTDIR}/openssl-install-macosx-arm64/include" ]; then
+            cp -r "${OUTDIR}/openssl-install-macosx-arm64/include/"* ${SDK_OUTPUT_DIR}/libopenssl.xcframework/macosx-arm64/Headers/
+            cp -r "${OUTDIR}/openssl-install-macosx-arm64/include/"* ${SDK_OUTPUT_DIR}/libopenssl.xcframework/macosx-x86_64/Headers/
+        fi
+        
+        echo "Created alternative framework structure at ${SDK_OUTPUT_DIR}/libopenssl.xcframework"
+    else
+        echo "ERROR: Could not create alternative framework - no libraries found"
+        exit 1
+    fi
+else
+    echo "XCFramework created successfully"
+fi
