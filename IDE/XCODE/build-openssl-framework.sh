@@ -67,7 +67,7 @@ build() { # <ARCH=arm64|x86_64> <TYPE=iphonesimulator|iphoneos|macosx|watchos|wa
     mkdir -p ${OUTDIR}/${TYPE}-${ARCH} && cd ${OUTDIR}/${TYPE}-${ARCH}
 
     CC="clang" CXX="clang" CFLAGS="${CFLAGS_COMMON} -Os -arch ${ARCH} -isysroot ${SDK_ROOT}" LDFLAGS="-arch ${ARCH} -isysroot ${SDK_ROOT}" ${WOLFSSL_DIR}/Configure no-asm ${TARGET} --prefix=${OUTDIR}/openssl-install-${TYPE}-${ARCH} ${CONF_OPTS}
-    make -j$((${NUMCPU} / 2))
+    make -j1
     make install
 
     popd
