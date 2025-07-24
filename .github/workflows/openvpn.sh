@@ -5,7 +5,6 @@
 # This script runs the OpenVPN tests against the FIPS wolfProvider.
 # Environment variables OPENVPN_REF, WOLFSSL_REF, and OPENSSL_REF
 # are set by Jenkins.
-# TODO: Add FORCE_FAIL neg testing
 set -e
 set -x
 
@@ -13,7 +12,8 @@ set -x
 OPENVPN_REF="v2.6.7"
 
 # Define base directories for cleaner paths
-WOLFPROV_DIR="/home/user/wolfProvider"
+USER=$(whoami)
+WOLFPROV_DIR="/home/${USER}/wolfProvider"
 WOLFSSL_INSTALL="$WOLFPROV_DIR/wolfssl-install"
 OPENSSL_INSTALL="$WOLFPROV_DIR/openssl-install"
 WOLFPROV_INSTALL="$WOLFPROV_DIR/wolfprov-install"
@@ -25,18 +25,17 @@ cd "$WOLFPROV_DIR"
 rm -rf openvpn
 git clone --depth=1 --branch="${OPENVPN_REF}" https://github.com/OpenVPN/openvpn.git
 
-# Set environment variables
-export LD_LIBRARY_PATH="${WOLFSSL_INSTALL}/lib:${OPENSSL_INSTALL}/lib64"
-export OPENSSL_CONF="${WOLFPROV_DIR}/provider-fips.conf"
-export OPENSSL_MODULES="${WOLFPROV_INSTALL}/lib"
-export PKG_CONFIG_PATH="${OPENSSL_INSTALL}/lib64/pkgconfig"
-"${OPENSSL_INSTALL}/bin/openssl" list -providers
-
 # Build OpenVPN
 cd openvpn
 autoreconf -ivf
 ./configure
 make -j
+
+# Source environment setup script for proper configuration
+echo "Setting up environment..."
+export WOLFSSL_ISFIPS=1
+export GITHUB_WORKSPACE="$WOLFPROV_DIR"
+source "$WOLFPROV_DIR/scripts/env-setup"
 
 # Run tests
 make check
