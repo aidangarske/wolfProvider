@@ -9,7 +9,7 @@ set -e
 set -x
 
 # Use stable version instead of specific commit
-OPENVPN_REF="v2.6.7"
+OPENVPN_REF="v2.6.12"
 
 # Define base directories for cleaner paths
 USER=$(whoami)
@@ -27,6 +27,9 @@ git clone --depth=1 --branch="${OPENVPN_REF}" https://github.com/OpenVPN/openvpn
 
 # Build OpenVPN
 cd openvpn
+
+patch -p1 < ../openvpn.patch
+
 autoreconf -ivf
 ./configure
 make -j

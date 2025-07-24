@@ -32,8 +32,10 @@ git clone --depth=1 --branch="${LIBSSH2_REF}" https://github.com/libssh2/libssh2
 # Build libssh2
 cd libssh2
 
-# Apply patches
-git apply ../libssh2.patch
+echo "Setting up environment..."
+export WOLFSSL_ISFIPS=1
+export GITHUB_WORKSPACE="$WOLFPROV_DIR"
+source "$WOLFPROV_DIR/scripts/env-setup"
 
 # Build libssh2
 autoreconf -fi

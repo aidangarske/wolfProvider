@@ -23,6 +23,7 @@ RUN apt-get update -y && apt-get install -y \
     git \
     gettext \
     gnupg \
+    iproute2 \
     libargon2-dev \
     libavahi-client-dev \
     linux-headers-generic \
