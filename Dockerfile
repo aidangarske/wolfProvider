@@ -3,6 +3,7 @@ FROM debian:bookworm
 # Install required dependencies
 RUN apt-get update -y && apt-get install -y \
     acl \
+    attr \
     autoconf \
     autoconf-archive \
     automake \
@@ -19,14 +20,17 @@ RUN apt-get update -y && apt-get install -y \
     cpanminus \
     expect \
     flex \
+    gawk \
     gperf \
     git \
+    gengetopt \
     gettext \
     gnupg \
-    iproute2 \
+    help2man \
+    libacl1-dev \
+    libattr1-dev \
     libargon2-dev \
     libavahi-client-dev \
-    linux-headers-generic \
     libc6 \
     libc6-dev \
     libcap2 \
@@ -48,6 +52,7 @@ RUN apt-get update -y && apt-get install -y \
     libperl-dev \
     libpopt-dev \
     libpcre3-dev \
+    libpcre2-dev \
     libpsl-dev \
     libpsl5 \
     libdevmapper-dev \
@@ -57,6 +62,7 @@ RUN apt-get update -y && apt-get install -y \
     libsasl2-dev \
     libssh-dev \
     libtool \
+    libtool-bin \
     libutf8proc-dev \
     libwrap0-dev \
     libcurl4-openssl-dev \
@@ -66,8 +72,11 @@ RUN apt-get update -y && apt-get install -y \
     libpcsclite-dev \
     libcmocka-dev \
     libcjose-dev \
+    libeac3 \
     libjson-c-dev \
     libhiredis-dev \
+    libltdl7 \
+    libltdl-dev \
     libmemcached-dev \
     libmount-dev \
     libusb-1.0-0-dev \
@@ -78,10 +87,13 @@ RUN apt-get update -y && apt-get install -y \
     libxext-dev \
     libxfixes-dev \
     libxi-dev \
+    libxml2-dev \
     libxinerama-dev \
     libxrandr-dev \
     libxss-dev \
     libxtst-dev \
+    libxxhash-dev \
+    libzstd-dev \
     linux-libc-dev \
     m4 \
     man2html \
@@ -98,15 +110,16 @@ RUN apt-get update -y && apt-get install -y \
     pkg-config \
     psmisc \
     python3 \
+    python3-cmarkgfm \
     python3-dev \
     python3-distutils \
     python3-docutils \
     python3-impacket \
     python3-ldb \
     python3-pytest \
+    scep \
     softhsm2 \
     ssh \
-    scdoc \
     sudo \
     systemd \
     tigervnc-viewer \
@@ -117,8 +130,6 @@ RUN apt-get update -y && apt-get install -y \
     xvfb \
     zlib1g-dev \
     zlib1g \
-    ninja-build \
-    libpcre2-dev \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Always upgrade GLIBC to support pre-built OpenSSL binaries (built with GLIBC 2.38+)
