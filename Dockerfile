@@ -117,6 +117,7 @@ RUN apt-get update -y && apt-get install -y \
     python3-impacket \
     python3-ldb \
     python3-pytest \
+    scdoc \
     scep \
     softhsm2 \
     ssh \
@@ -146,6 +147,10 @@ ARG HOST_UID=1001
 ARG HOST_GID=1001
 RUN groupadd -g ${HOST_GID} user && \
     useradd -u ${HOST_UID} -g ${HOST_GID} -m user
+
+# Configure sudo for the user (no password required)
+RUN usermod -aG sudo user && \
+    echo "user ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
 
 # Switch to user
 USER user

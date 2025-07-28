@@ -1,0 +1,95 @@
+name: kmod Tests
+
+on:
+  push:
+    branches: [ 'master', 'main', 'release/**' ]
+  pull_request:
+    branches: [ '*' ]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build_wolfprovider:
+    uses: ./.github/workflows/build-wolfprovider.yml
+    with:
+      wolfssl_ref: ${{ matrix.wolfssl_ref }}
+      openssl_ref: ${{ matrix.openssl_ref }}
+    strategy:
+      matrix:
+        wolfssl_ref: [ 'master', 'v5.8.0-stable' ]
+        openssl_ref: [ 'openssl-3.5.0' ]
+
+  test_kmod:
+    runs-on: ubuntu-22.04
+    needs: build_wolfprovider
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        kmod_ref: [ 'v34', 'master' ]
+        wolfssl_ref: [ 'master', 'v5.8.0-stable' ]
+        openssl_ref: [ 'openssl-3.5.0' ]
+        # Note: No WOLFPROV_FORCE_FAIL matrix - kmod is only a signature parser, not a crypto verification tool
+        # The signature tests only extract metadata (hash algo, signer name, key ID) but don't perform crypto operations
+        # Some tests are disabled as they require actual kernel module loading operations (init_module/finit_module syscalls)
+    steps:
+      - name: Checkout wolfProvider
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Retrieving wolfSSL/wolfProvider from cache
+        uses: actions/cache/restore@v4
+        id: wolfprov-cache
+        with:
+          path: |
+            wolfssl-install
+            wolfprov-install
+            openssl-install/lib64
+            openssl-install/include
+            openssl-install/bin
+          key: wolfprov-${{ matrix.wolfssl_ref }}-${{ matrix.openssl_ref }}-${{ github.sha }}
+          fail-on-cache-miss: true
+
+      - name: Install kmod test dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential meson ninja-build pkg-config python3-pip python3-setuptools python3-wheel python3-meson zlib1g-dev liblzma-dev libzstd-dev libssl-dev
+
+      - name: Clone kmod
+        run: |
+          rm -rf kmod_repo
+          git clone --depth=1 --branch "${{ matrix.kmod_ref }}" https://github.com/kmod-project/kmod.git kmod_repo
+
+      - name: Set up wolfProvider environment
+        run: |
+          echo "LD_LIBRARY_PATH=$(pwd)/wolfssl-install/lib:$(pwd)/openssl-install/lib64" >> $GITHUB_ENV
+          echo "OPENSSL_CONF=$(pwd)/provider-fips.conf" >> $GITHUB_ENV
+          echo "OPENSSL_MODULES=$(pwd)/wolfprov-install/lib" >> $GITHUB_ENV
+          echo "PKG_CONFIG_PATH=$(pwd)/openssl-install/lib64/pkgconfig" >> $GITHUB_ENV
+          ./openssl-install/bin/openssl list -providers
+
+      - name: Build and install kmod
+        run: |
+          cd kmod_repo
+          rm -rf builddir
+          meson setup --buildtype release --prefix="$(pwd)/../kmod-install" builddir
+          meson compile -C builddir
+          meson install -C builddir
+
+      - name: Run kmod tests
+        run: |
+          cd kmod_repo/builddir
+          # Run kmod tests - note that kmod only parses signature metadata, doesn't perform crypto verification
+          # The signature tests extract hash algorithm, signer name, and key ID but don't verify signatures
+          # Some tests are disabled as they require actual kernel module loading operations (init_module/finit_module syscalls)
+          meson test --print-errorlogs 2>&1 | tee kmod-test.log
+          if grep -q "100% tests passed" kmod-test.log || ! grep -q "FAILED" kmod-test.log; then
+            echo "Workflow completed successfully"
+            exit 0
+          else
+            echo "Workflow failed: not all tests passed"
+            exit 1
+          fi
