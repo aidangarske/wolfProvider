@@ -19,6 +19,7 @@ RUN apt-get update -y && apt-get install -y \
     check \
     cpanminus \
     expect \
+    efivar \
     flex \
     gawk \
     gperf \
@@ -27,6 +28,7 @@ RUN apt-get update -y && apt-get install -y \
     gettext \
     gnupg \
     help2man \
+    iproute2 \
     libacl1-dev \
     libattr1-dev \
     libargon2-dev \
@@ -61,6 +63,7 @@ RUN apt-get update -y && apt-get install -y \
     libfreeipmi-dev \
     libsasl2-dev \
     libssh-dev \
+    libtss2-dev \
     libtool \
     libtool-bin \
     libutf8proc-dev \
@@ -118,12 +121,14 @@ RUN apt-get update -y && apt-get install -y \
     python3-ldb \
     python3-pytest \
     scdoc \
+    swtpm \
     scep \
     softhsm2 \
     ssh \
     sudo \
     systemd \
     tigervnc-viewer \
+    tpm2-abrmd \
     uuid-dev \
     vim \
     wget \

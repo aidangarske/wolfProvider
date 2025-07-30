@@ -1,0 +1,68 @@
+name: tpm2-tools Tests
+
+on:
+  push:
+    branches: [ 'master', 'main', 'release/**' ]
+  pull_request:
+    branches: [ '*' ]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build_wolfprovider:
+    uses: ./.github/workflows/build-wolfprovider.yml
+    with:
+      wolfssl_ref: ${{ matrix.wolfssl_ref }}
+      openssl_ref: ${{ matrix.openssl_ref }}
+    strategy:
+      matrix:
+        wolfssl_ref: [ 'master', 'v5.8.0-stable' ]
+        openssl_ref: [ 'openssl-3.5.0' ]
+
+  test_tpm2_tools:
+    runs-on: ubuntu-22.04
+    needs: build_wolfprovider
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        tpm2_tools_ref: [ '5.7' ]
+        wolfssl_ref: [ 'master', 'v5.8.0-stable' ]
+        openssl_ref: [ 'openssl-3.5.0' ]
+        # Note: No WOLFPROV_FORCE_FAIL matrix - tpm2-tools uses OpenSSL for crypto operations
+        # and will use wolfProvider when configured with the custom OpenSSL installation
+    steps:
+      - name: Checkout wolfProvider
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Retrieving wolfSSL/wolfProvider from cache
+        uses: actions/cache/restore@v4
+        id: wolfprov-cache
+        with:
+          path: |
+            wolfssl-install
+            wolfprov-install
+            openssl-install/lib64
+            openssl-install/include
+            openssl-install/bin
+          key: wolfprov-${{ matrix.wolfssl_ref }}-${{ matrix.openssl_ref }}-${{ github.sha }}
+          fail-on-cache-miss: true
+
+      - name: Install tpm2-tools test dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential autoconf automake libtool \
+            pkg-config libssl-dev libtss2-dev libtss2-esys-dev libtss2-mu-dev \
+            libtss2-tcti-dev libtss2-rc-dev libtss2-tcti-device-dev \
+            libtss2-tcti-tabrmd-dev libtss2-tcti-mssim-dev
+
+      - name: Run tpm2-tools tests
+        run: |
+          export TPM2_TOOLS_REF="${{ matrix.tpm2_tools_ref }}"
+          export WOLFSSL_REF="${{ matrix.wolfssl_ref }}"
+          export OPENSSL_REF="${{ matrix.openssl_ref }}"
+          ./.github/workflows/tpm2-tools.sh

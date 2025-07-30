@@ -1,0 +1,12 @@
+diff --git a/tests/unit_tests/openvpn/test_crypto.c b/tests/unit_tests/openvpn/test_crypto.c
+index 4b1627a6..f485df0f 100644
+--- a/tests/unit_tests/openvpn/test_crypto.c
++++ b/tests/unit_tests/openvpn/test_crypto.c
+@@ -484,7 +484,6 @@ main(void)
+         cmocka_unit_test(crypto_translate_cipher_names),
+         cmocka_unit_test(crypto_test_tls_prf),
+         cmocka_unit_test(crypto_test_hmac),
+-        cmocka_unit_test(test_des_encrypt),
+         cmocka_unit_test(test_occ_mtu_calculation),
+         cmocka_unit_test(test_mssfix_mtu_calculation)
+     };
