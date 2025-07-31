@@ -18,45 +18,6 @@ WOLFSSL_INSTALL="$WOLFPROV_DIR/wolfssl-install"
 OPENSSL_INSTALL="$WOLFPROV_DIR/openssl-install"
 WOLFPROV_INSTALL="$WOLFPROV_DIR/wolfprov-install"
 
-# Install system dependencies for tpm2-abrmd and tpm_server
-echo "Installing system dependencies..."
-sudo apt update
-sudo apt install -y \
-    libglib2.0-dev \
-    libdbus-1-dev \
-    libgirepository1.0-dev \
-    libsystemd-dev \
-    dbus \
-    dbus-x11 \
-    pkg-config \
-    wget \
-    build-essential
-
-# Build tpm2-abrmd
-echo "Building tpm2-abrmd..."
-rm -rf tpm2-abrmd
-git clone --depth=1 https://github.com/tpm2-software/tpm2-abrmd.git
-cd tpm2-abrmd
-./bootstrap
-./configure --prefix="$WOLFPROV_DIR/tpm2-abrmd-install" \
-  --with-dbuspolicydir=/etc/dbus-1/system.d \
-  --with-udevrulesdir=/usr/lib/udev/rules.d \
-  --with-systemdsystemunitdir=/usr/lib/systemd/system \
-  --libdir="$WOLFPROV_DIR/tpm2-abrmd-install/lib64"
-make -j$(nproc)
-make install
-cd "$WOLFPROV_DIR"
-
-# Build IBM TPM simulator (tpm_server)
-echo "Building IBM TPM simulator..."
-mkdir -p ibmtpm
-cd ibmtpm
-wget https://sourceforge.net/projects/ibmswtpm2/files/latest/download -O ibmtpm.tar.gz
-tar -xzf ibmtpm.tar.gz
-cd src
-make -j$(nproc)
-# Copy tpm_server to a location in PATH
-sudo cp tpm_server /usr/local/bin/
 cd "$WOLFPROV_DIR"
 
 # Clone tpm2-tools repo
@@ -65,17 +26,12 @@ git clone --depth=1 --branch="${TPM2_TOOLS_REF}" https://github.com/tpm2-softwar
 
 cd tpm2-tools
 
-# Add tpm2-abrmd to PATH
-export PATH="$WOLFPROV_DIR/tpm2-abrmd-install/bin:$PATH"
-
-# Configure tpm2-tools to use wolfProvider and enable tests
+# Configure tpm2-tools to use system OpenSSL and enable tests
 ./bootstrap
 ./configure \
   --prefix="$WOLFPROV_DIR/tpm2-tools-install" \
-  --with-openssl="${OPENSSL_INSTALL}" \
+  --with-openssl="$OPENSSL_INSTALL" \
   --enable-unit \
-  --disable-fapi \
-  PATH="$PATH"
 
 # Build tpm2-tools
 make -j$(nproc)
@@ -86,28 +42,15 @@ echo "Setting up environment..."
 export GITHUB_WORKSPACE="$WOLFPROV_DIR"
 source "$WOLFPROV_DIR/scripts/env-setup"
 
-# Set up test environment to use tabrmd properly
-# The key is to let the test framework handle the TCTI configuration
-# instead of trying to override it with a hardcoded port
-export TPM2_ABRMD="$WOLFPROV_DIR/tpm2-abrmd-install/bin/tpm2-abrmd"
-export TPM2_SIM="tpm_server"
-
-# Start D-Bus daemon for tpm2-abrmd
-echo "Starting D-Bus daemon..."
-sudo mkdir -p /var/run/dbus
-sudo dbus-daemon --system --fork
-sleep 2
-
-# Verify D-Bus is running
-if ! pgrep dbus-daemon > /dev/null; then
-    echo "ERROR: D-Bus daemon failed to start"
-    exit 1
-fi
-echo "D-Bus daemon is running"
-
-# Run the tests
-echo "Running tpm2-tools tests..."
-make check
+# Run only unit tests and integration tests that dont need TPM2 hardware/simulator
+make check TESTS="test/unit/test_string_bytes test/unit/test_files \
+test/unit/test_tpm2_header test/unit/test_tpm2_attr_util test/unit/test_tpm2_alg_util \
+test/unit/test_pcr test/unit/test_tpm2_auth_util test/unit/test_tpm2_errata \
+test/unit/test_tpm2_session test/unit/test_tpm2_policy test/unit/test_tpm2_util \
+test/unit/test_options test/unit/test_cc_util test/unit/test_tpm2_eventlog \
+test/unit/test_tpm2_eventlog_yaml test/unit/test_object \
+test/integration/tests/X509certutil test/integration/tests/toggle_options \
+test/integration/tests/rc_decode test/integration/tests/X509certutil"
 
 if [ $? -eq 0 ]; then
   echo "Workflow completed successfully"

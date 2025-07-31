@@ -16,4 +16,4 @@ docker run -it \
   -v $(pwd):/home/user/wolfProvider \
   --name wolfprovider-net-snmp \
   --user 1001:1001 \
-  wolfprovider /bin/bash 
+  wolfprovider /bin/bash

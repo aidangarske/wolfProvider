@@ -19,7 +19,6 @@ RUN apt-get update -y && apt-get install -y \
     check \
     cpanminus \
     expect \
-    efivar \
     flex \
     gawk \
     gperf \
@@ -28,7 +27,6 @@ RUN apt-get update -y && apt-get install -y \
     gettext \
     gnupg \
     help2man \
-    iproute2 \
     libacl1-dev \
     libattr1-dev \
     libargon2-dev \
@@ -62,8 +60,6 @@ RUN apt-get update -y && apt-get install -y \
     libsystemd-dev \
     libfreeipmi-dev \
     libsasl2-dev \
-    libssh-dev \
-    libtss2-dev \
     libtool \
     libtool-bin \
     libutf8proc-dev \
@@ -84,6 +80,12 @@ RUN apt-get update -y && apt-get install -y \
     libmount-dev \
     libusb-1.0-0-dev \
     libuv1-dev \
+    libtss2-dev \
+    tpm2-abrmd \
+    swtpm \
+    tpm2-tools \
+    iproute2 \
+    libidn2-dev \
     libvncserver-dev \
     libx11-dev \
     libxdamage-dev \
@@ -120,15 +122,12 @@ RUN apt-get update -y && apt-get install -y \
     python3-impacket \
     python3-ldb \
     python3-pytest \
-    scdoc \
-    swtpm \
     scep \
     softhsm2 \
     ssh \
     sudo \
     systemd \
     tigervnc-viewer \
-    tpm2-abrmd \
     uuid-dev \
     vim \
     wget \
@@ -144,8 +143,8 @@ RUN echo "deb http://deb.debian.org/debian trixie main" >> /etc/apt/sources.list
     apt-get install -y -t trixie libc6 libc6-dev && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Install Perl dependencies
-RUN cpanm -n Proc::Find Net::SSLeay IO::Socket::SSL
+# Install Perl dependencies (simplified to avoid OpenSSL conflicts)
+RUN cpanm -n Proc::Find
 
 # Create user with specific UID/GID
 ARG HOST_UID=1001
