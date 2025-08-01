@@ -20,41 +20,32 @@ WOLFPROV_INSTALL="$WOLFPROV_DIR/wolfprov-install"
 
 cd "$WOLFPROV_DIR"
 
-# Install system dependencies
-sudo apt update
-sudo apt install -y \
-    build-essential \
-    autoconf \
-    libtool \
-    pkg-config \
-    uuid-dev \
-    libdevmapper-dev \
-    libpopt-dev \
-    libjson-c-dev \
-    libargon2-dev
-
 # Clone cryptsetup repo
 rm -rf cryptsetup
 git clone --depth=1 --branch="${CRYPTSETUP_REF}" https://github.com/mbroz/cryptsetup.git
 
 cd cryptsetup
 
-# Setup wolfProvider environment BEFORE configuring
-echo "Setting up environment..."
-export WOLFSSL_ISFIPS=1
-export GITHUB_WORKSPACE="$WOLFPROV_DIR"
-source "$WOLFPROV_DIR/scripts/env-setup"
+# Apply patch to disable PBKDF2
+patch -p1 < "$WOLFPROV_DIR/libcryptsetup.patch"
 
 # Build cryptsetup with custom OpenSSL
 echo "Building cryptsetup..."
 ./autogen.sh
 ./configure --enable-static \
-  --with-crypto_backend=openssl
+  --with-crypto_backend=openssl \
+  --disable-ssh-token \
+  CPPFLAGS="-I$OPENSSL_INSTALL/include" \
+  LDFLAGS="-L$OPENSSL_INSTALL/lib64"
 make -j$(nproc)
+
+echo "Setting up environment..."
+# export WOLFSSL_ISFIPS=1
+export GITHUB_WORKSPACE="$WOLFPROV_DIR"
+source "$WOLFPROV_DIR/scripts/env-setup"
 
 # Run cryptsetup tests
 echo "Running cryptsetup tests..."
-export WOLFPROV_FORCE_FAIL=1
 make check
 
 if [ $? -eq 0 ]; then

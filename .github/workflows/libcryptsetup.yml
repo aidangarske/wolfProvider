@@ -35,16 +35,10 @@ jobs:
         force_fail: ['WOLFPROV_FORCE_FAIL=1', '']
 
     steps:
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            build-essential autoconf libtool pkg-config \
-            uuid-dev libdevmapper-dev libpopt-dev \
-            libjson-c-dev libargon2-dev
-
       - name: Checkout wolfProvider
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
 
       - name: Restore wolfProvider build
         uses: actions/cache/restore@v4
@@ -56,8 +50,17 @@ jobs:
             openssl-install/lib64
             openssl-install/include
             openssl-install/bin
+
           key: wolfprov-${{ matrix.wolfssl_ref }}-${{ matrix.openssl_ref }}-${{ github.sha }}
           fail-on-cache-miss: true
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential autoconf libtool pkg-config \
+            uuid-dev libdevmapper-dev libpopt-dev \
+            libjson-c-dev libargon2-dev
 
       - name: Checkout cryptsetup
         uses: actions/checkout@v4
@@ -66,15 +69,24 @@ jobs:
           path: cryptsetup
           ref: ${{ matrix.cryptsetup_ref }}
 
+      - name: Checkout OSP
+        uses: actions/checkout@v4
+        with:
+          repository: wolfssl/osp
+          path: osp
+          fetch-depth: 1
+      - run: |
+          cd cryptsetup
+          patch -p1 < $GITHUB_WORKSPACE/osp/wolfProvider/cryptsetup/cryptsetup-${{ matrix.cryptsetup_ref }}-wolfprov.patch
+
       - name: Build cryptsetup
         working-directory: cryptsetup
         run: |
-          source $GITHUB_WORKSPACE/scripts/env-setup
           ./autogen.sh
           ./configure --enable-static --disable-shared \
             --with-crypto-backend=openssl \
-            --with-openssl-includes=$OPENSSL_INSTALL_DIR/include \
-            --with-openssl-libs=$OPENSSL_INSTALL_DIR/lib64
+            --with-openssl-includes=$GITHUB_WORKSPACE/openssl-install/include \
+            --with-openssl-libs=$GITHUB_WORKSPACE/openssl-install/lib64
           make -j$(nproc)
 
       - name: Run cryptsetup tests
@@ -83,6 +95,6 @@ jobs:
           source $GITHUB_WORKSPACE/scripts/env-setup
           export ${{ matrix.force_fail }}
 
-          make check
-          TEST_RESULT=$?
+          make check 2>&1 | tee cryptsetup-test.log
+          TEST_RESULT=$(grep -q "All 10 tests passed" cryptsetup-test.log && echo "0" || echo "1")
           $GITHUB_WORKSPACE/.github/scripts/check-workflow-result.sh $TEST_RESULT ${{ matrix.force_fail }} cryptsetup
