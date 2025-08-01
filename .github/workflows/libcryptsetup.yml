@@ -1,0 +1,88 @@
+name: cryptsetup Tests
+
+# COMMON TRIGGER
+on:
+  push:
+    branches: ['main', 'release/**']
+  pull_request:
+    branches: ['*']
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build_wolfprovider:
+    uses: ./.github/workflows/build-wolfprovider.yml
+    with:
+      wolfssl_ref: ${{ matrix.wolfssl_ref }}
+      openssl_ref: ${{ matrix.openssl_ref }}
+    strategy:
+      matrix:
+        wolfssl_ref: ['v5.8.0-stable', 'master']
+        openssl_ref: ['openssl-3.5.0']
+
+  test_cryptsetup:
+    runs-on: ubuntu-22.04
+    needs: build_wolfprovider
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        cryptsetup_ref: ['v2.6.1']
+        wolfssl_ref: ['v5.8.0-stable', 'master']
+        openssl_ref: ['openssl-3.5.0']
+        force_fail: ['WOLFPROV_FORCE_FAIL=1', '']
+
+    steps:
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential autoconf libtool pkg-config \
+            uuid-dev libdevmapper-dev libpopt-dev \
+            libjson-c-dev libargon2-dev
+
+      - name: Checkout wolfProvider
+        uses: actions/checkout@v4
+
+      - name: Restore wolfProvider build
+        uses: actions/cache/restore@v4
+        id: wolfprov-cache
+        with:
+          path: |
+            wolfssl-install
+            wolfprov-install
+            openssl-install/lib64
+            openssl-install/include
+            openssl-install/bin
+          key: wolfprov-${{ matrix.wolfssl_ref }}-${{ matrix.openssl_ref }}-${{ github.sha }}
+          fail-on-cache-miss: true
+
+      - name: Checkout cryptsetup
+        uses: actions/checkout@v4
+        with:
+          repository: cryptsetup/cryptsetup
+          path: cryptsetup
+          ref: ${{ matrix.cryptsetup_ref }}
+
+      - name: Build cryptsetup
+        working-directory: cryptsetup
+        run: |
+          source $GITHUB_WORKSPACE/scripts/env-setup
+          ./autogen.sh
+          ./configure --enable-static --disable-shared \
+            --with-crypto-backend=openssl \
+            --with-openssl-includes=$OPENSSL_INSTALL_DIR/include \
+            --with-openssl-libs=$OPENSSL_INSTALL_DIR/lib64
+          make -j$(nproc)
+
+      - name: Run cryptsetup tests
+        working-directory: cryptsetup
+        run: |
+          source $GITHUB_WORKSPACE/scripts/env-setup
+          export ${{ matrix.force_fail }}
+
+          make check
+          TEST_RESULT=$?
+          $GITHUB_WORKSPACE/.github/scripts/check-workflow-result.sh $TEST_RESULT ${{ matrix.force_fail }} cryptsetup

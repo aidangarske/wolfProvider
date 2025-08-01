@@ -32,13 +32,14 @@ cd tpm2-tools
   --prefix="$WOLFPROV_DIR/tpm2-tools-install" \
   --with-openssl="$OPENSSL_INSTALL" \
   --enable-unit \
+  --disable-man \
 
 # Build tpm2-tools
 make -j$(nproc)
 
 # Setup wolfProvider environment
 echo "Setting up environment..."
-# export WOLFSSL_ISFIPS=1
+export WOLFSSL_ISFIPS=1
 export GITHUB_WORKSPACE="$WOLFPROV_DIR"
 source "$WOLFPROV_DIR/scripts/env-setup"
 

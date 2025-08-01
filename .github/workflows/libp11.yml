@@ -1,0 +1,143 @@
+name: libp11 Tests
+
+# START OF COMMON SECTION
+on:
+  push:
+    branches: [ 'master', 'main', 'release/**' ]
+  pull_request:
+    branches: [ '*' ]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+# END OF COMMON SECTION
+
+jobs:
+  build_wolfprovider:
+    uses: ./.github/workflows/build-wolfprovider.yml
+    with:
+      wolfssl_ref: ${{ matrix.wolfssl_ref }}
+      openssl_ref: ${{ matrix.openssl_ref }}
+    strategy:
+      matrix:
+        wolfssl_ref: [ 'master', 'v5.8.0-stable' ]
+        openssl_ref: [ 'openssl-3.5.0' ]
+
+  test_libp11:
+    runs-on: ubuntu-22.04
+    needs: build_wolfprovider
+    # This should be a safe limit for the tests to run.
+    timeout-minutes: 20
+    strategy:
+      matrix:
+        libp11_ref: [ 'master', '0.4.17' ]
+        wolfssl_ref: [ 'master', 'v5.8.0-stable' ]
+        openssl_ref: [ 'openssl-3.5.0' ]
+        force_fail: ['WOLFPROV_FORCE_FAIL=1', '']
+        exclude:
+          - libp11_ref: 'master'
+            force_fail: 'WOLFPROV_FORCE_FAIL=1'
+    steps:
+      - name: Checkout wolfProvider
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Retrieving wolfSSL/wolfProvider from cache
+        uses: actions/cache/restore@v4
+        id: wolfprov-cache
+        with:
+          path: |
+            wolfssl-install
+            wolfprov-install
+            openssl-install/lib64
+            openssl-install/include
+            openssl-install/bin
+
+          key: wolfprov-${{ matrix.wolfssl_ref }}-${{ matrix.openssl_ref }}-${{ github.sha }}
+          fail-on-cache-miss: true
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            autoconf \
+            automake \
+            libtool \
+            pkg-config \
+            git \
+            softhsm2 \
+            libp11-kit-dev \
+            libssl-dev \
+            libpam0g-dev \
+            libudev-dev \
+            libusb-1.0-0-dev \
+            libpcsclite-dev \
+            libreadline-dev \
+            libncurses5-dev \
+            libtspi-dev \
+            libtasn1-bin \
+            opensc
+
+      - name: Build libp11
+        uses: wolfSSL/actions-build-autotools-project@v1
+        with:
+          repository: OpenSC/libp11
+          path: libp11
+          ref: ${{ matrix.libp11_ref }}
+          configure: |
+            OPENSSL_CFLAGS="-I$GITHUB_WORKSPACE/openssl-install/include" \
+            OPENSSL_LIBS="-L$GITHUB_WORKSPACE/openssl-install/lib64 -lcrypto" \
+            ./configure \
+              --prefix="$GITHUB_WORKSPACE/libp11-install" \
+              --with-enginesdir="$GITHUB_WORKSPACE/libp11-install/lib/engines-3" \
+              --with-modulesdir="$GITHUB_WORKSPACE/libp11-install/lib/ossl-modules" \
+              CFLAGS="-Wno-error" \
+              LDFLAGS="-L$GITHUB_WORKSPACE/openssl-install/lib64" \
+              CPPFLAGS="-I$GITHUB_WORKSPACE/openssl-install/include"
+          check: false
+
+      - name: Apply libp11 patch
+        working-directory: libp11
+        run: |
+          # Apply patch to fix missing includes
+          patch -p1 < ../libp11-fix-includes.patch
+
+      - name: Test libp11 with wolfProvider
+        working-directory: libp11
+        env:
+          GITHUB_WORKSPACE: ${{ github.workspace }}
+          LD_LIBRARY_PATH: ${{ github.workspace }}/openssl-install/lib64:${{ github.workspace }}/wolfssl-install/lib:${{ github.workspace }}/wolfprov-install/lib
+          OPENSSL_CONF: ${{ github.workspace }}/openssl.cnf
+          SOFTHSM2_CONF: ${{ github.workspace }}/softhsm2.conf
+        run: |
+          # Set up the environment for wolfProvider
+          export WOLFSSL_ISFIPS=1
+          source $GITHUB_WORKSPACE/scripts/env-setup
+          export ${{ matrix.force_fail }}
+          export LIBP11_REF=${{ matrix.libp11_ref }}
+          
+          # Set up SoftHSM for testing
+          mkdir -p "$GITHUB_WORKSPACE/softhsm2-tokens"
+          cat > "$SOFTHSM2_CONF" << EOF
+          directories.tokendir = $GITHUB_WORKSPACE/softhsm2-tokens
+          objectstore.backend = file
+          log.level = DEBUG
+          EOF
+          
+          # Initialize SoftHSM token
+          softhsm2-util --init-token --slot 0 --label "test-token" --pin 1234 --so-pin 1234
+          
+          # Run tests and save output to test.log
+          make check 2>&1 | tee libp11-test.log
+          # Capture the test result using PIPESTATUS (Bash only)
+          TEST_RESULT=${PIPESTATUS[0]}
+          $GITHUB_WORKSPACE/.github/scripts/check-workflow-result.sh $TEST_RESULT ${{ matrix.force_fail }} libp11
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: libp11-test-results-${{ matrix.libp11_ref }}-${{ matrix.wolfssl_ref }}-${{ matrix.openssl_ref }}
+          path: libp11/libp11-test.log 
