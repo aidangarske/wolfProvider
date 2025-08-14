@@ -288,7 +288,7 @@ void WOLFPROV_ENTER(int component, const char* msg)
  * @param ret  [IN] Value that function will be returning.
  */
 void WOLFPROV_LEAVE_EX(int component, const char* func, const char* msg,
-    int ret)
+                         int ret)
 {
     if (loggingEnabled) {
         char buffer[WOLFPROV_MAX_LOG_WIDTH];
@@ -296,6 +296,43 @@ void WOLFPROV_LEAVE_EX(int component, const char* func, const char* msg,
                   msg, ret, func);
         wolfprovider_log(WP_LOG_LEAVE, component, buffer);
     }
+}
+
+/**
+ * Log function to suppress errors that are not real errors. This function 
+ * is used to suppress benign probe failures (ret == 0) unless err is set
+ * (indicating a real error) or the envelope matched but failed (emit DEBUG).
+ * Define WOLFPROV_DEBUG_LEAVE_VERBOSE to restore full probe LEAVE output
+ * (log all returns including ret == 0).
+ *
+ * @param component [IN] Component type, from wolfProv_LogComponents enum.
+ * @param func      [IN] Name of function that is exiting.
+ * @param msg       [IN] Log message (typically file:line).
+ * @param matched   [IN] Nonzero if the probe envelope matched.
+ * @param err       [IN] Nonzero if a real error occurred.
+ * @param ret       [IN] Value that function will be returning.
+ */
+void WOLFPROV_LEAVE_SILENT_EX(int component, const char* func, 
+                              const char* msg, int matched,
+                              int err, int ret)
+{
+#ifdef WOLFPROV_DEBUG_LEAVE_VERBOSE
+    (void)matched;
+    (void)err;
+    /* Legacy behavior: log all returns including return 0 */
+    WOLFPROV_LEAVE_EX(component, func, msg, ret);
+#else
+    if (ret == 1) { /* Success - log normally */
+        WOLFPROV_LEAVE_EX(component, func, msg, ret);
+    }
+    else if (err) { /* Error - log for debugging */
+        WOLFPROV_LEAVE_EX(component, func, msg, ret);
+    }
+    else if (matched) { /* Matched but error - log for debugging */
+        WOLFPROV_LEAVE_EX(component, func, msg, ret);
+    }
+    /* else: pure probe miss -> suppress by default */
+#endif
 }
 
 /**

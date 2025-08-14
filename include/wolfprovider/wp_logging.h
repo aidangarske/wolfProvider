@@ -42,6 +42,17 @@
 #define WOLFPROV_MAX_LOG_WIDTH 120
 #endif
 
+
+/* Helper macro to select function name for logging */
+#if defined(_WIN32)
+    #define WOLFPROV_FUNC_NAME __FUNCTION__
+#elif defined(__STDC_VERSION__) && __STDC_VERSION__ >= 199901L
+    #define WOLFPROV_FUNC_NAME __func__
+#else
+    #define WOLFPROV_FUNC_NAME ""
+#endif
+
+
 /* wolfProv debug logging support can be compiled in by defining
  * WOLFPROV_DEBUG or by using the --enable-debug configure option.
  *
@@ -190,12 +201,12 @@ enum wolfProv_LogComponents {
 
 /* Manually set the log level */
 #ifndef WOLFPROV_LOG_LEVEL_FILTER
-#define WOLFPROV_LOG_LEVEL_FILTER WP_LOG_LEVEL_DEFAULT
+#define WOLFPROV_LOG_LEVEL_FILTER WP_LOG_LEVEL_ALL
 #endif
 
 /* Manually set the components */
 #ifndef WOLFPROV_LOG_COMPONENTS_FILTER
-#define WOLFPROV_LOG_COMPONENTS_FILTER WP_LOG_COMPONENTS_DEFAULT
+#define WOLFPROV_LOG_COMPONENTS_FILTER WP_LOG_COMPONENTS_ALL
 #endif
 
 /* Conditional logging macro that checks compile-time configuration */
@@ -223,6 +234,8 @@ int wolfProv_SetLogComponents(int componentMask);
 
 #ifdef WOLFPROV_DEBUG
 
+#define WOLFPROV_DEBUG_LEAVE_VERBOSE
+
 #define WOLFPROV_STRINGIZE_HELPER(x) #x
 #define WOLFPROV_STRINGIZE(x) WOLFPROV_STRINGIZE_HELPER(x)
 
@@ -236,18 +249,13 @@ int wolfProv_SetLogComponents(int componentMask);
     WOLFPROV_ERROR_FUNC_NULL_LINE(type, funcName, ret, __FILE__, __LINE__)
 
 void WOLFPROV_ENTER(int type, const char* msg);
-/* Call the extended version of the API with the function name of the caller. */
-#ifdef _WIN32
-    #define WOLFPROV_LEAVE(type, msg, ret) \
-        WOLFPROV_LEAVE_EX(type, __FUNCTION__, msg, ret)
-#elif __STDC__ && __STDC_VERSION__ >= 199901L
-    #define WOLFPROV_LEAVE(type, msg, ret) \
-        WOLFPROV_LEAVE_EX(type, __func__, msg, ret)
-#else
-    #define WOLFPROV_LEAVE(type, msg, ret) \
-        WOLFPROV_LEAVE_EX(type, "", msg, ret)
-#endif
+#define WOLFPROV_LEAVE(type, msg, ret) \
+    WOLFPROV_LEAVE_EX(type, WOLFPROV_FUNC_NAME, msg, ret)
 void WOLFPROV_LEAVE_EX(int type, const char* func, const char* msg, int ret);
+#define WOLFPROV_LEAVE_SILENT(type, msg, matched, err, ret) \
+    WOLFPROV_LEAVE_SILENT_EX(type, WOLFPROV_FUNC_NAME, msg, matched, err, ret)
+void WOLFPROV_LEAVE_SILENT_EX(int type, const char* func, const char* msg,
+    int matched, int err, int ret);
 void WOLFPROV_MSG(int type, const char* fmt, ...);
 void WOLFPROV_MSG_VERBOSE(int type, const char* fmt, ...);
 void WOLFPROV_MSG_DEBUG(int type, const char* fmt, ...);
@@ -265,7 +273,8 @@ void WOLFPROV_BUFFER(int type, const unsigned char* buffer,
 #else /* WOLFPROV_DEBUG */
 
 #define WOLFPROV_ENTER(t, m)
-#define WOLFPROV_LEAVE(t, m, r)
+#define WOLFPROV_LEAVE(t, f, m, r)
+#define WOLFPROV_LEAVE_SILENT(t, f, m, e, r)
 #define WOLFPROV_MSG(t, m, ...)
 #define WOLFPROV_MSG_VERBOSE(t, m, ...)
 #define WOLFPROV_MSG_DEBUG(t, m, ...)

@@ -2051,10 +2051,22 @@ static int wp_ecc_decode_params(wp_Ecc* ecc, unsigned char* data, word32 len)
     return ok;
 }
 
+
+/**
+ * Decode the DER encoded ECC parameters (OID) into the ECC key object.
+ *
+ * @param [in, out] ecc   ECC key object.
+ * @param [in]      data  DER encoding of the parameters (OID).
+ * @param [in]      len   Length, in bytes, of DER encoding.
+ * @return  1 on success.
+ * @return  0 on failure.
+ */
 static int wp_ecc_decode_x963_pub(wp_Ecc* ecc, unsigned char* data, word32 len)
 {
     int ok = 1;
     int rc;
+    int matched = 0;
+    int err = 0;
 
     WOLFPROV_ENTER(WP_LOG_ECC, "wp_ecc_decode_x963_pub");
 
@@ -2063,15 +2075,18 @@ static int wp_ecc_decode_x963_pub(wp_Ecc* ecc, unsigned char* data, word32 len)
         ok = 0;
     }
     if (ok) {
+        matched = 1;
         ecc->curveId = ecc->key.dp->id;
         ecc->hasPub = 1;
         /* Needs curveId set. */
         if (!wp_ecc_set_bits(ecc)) {
             ok = 0;
+            err = 1;
         }
     }
 
-    WOLFPROV_LEAVE(WP_LOG_ECC, __FILE__ ":" WOLFPROV_STRINGIZE(__LINE__), ok);
+    /* Conditional decoder leave: suppress benign probe 0s unless matched/err */
+    WOLFPROV_LEAVE_SILENT(WP_LOG_ECC, __FILE__ ":" WOLFPROV_STRINGIZE(__LINE__), matched, err, ok);
     return ok;
 }
 
