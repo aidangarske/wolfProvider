@@ -2935,19 +2935,25 @@ static int wp_ecc_type_specific_does_selection(WOLFPROV_CTX* provCtx,
     int selection)
 {
     int ok;
+    int matched = 0;
+    int err = 0;
 
-    WOLFPROV_ENTER(WP_LOG_ECC, "wp_ecc_type_specific_does_selection");
+    WOLFPROV_ENTER_NOEXIT(WP_LOG_ECC, "wp_ecc_type_specific_does_selection");
 
     (void)provCtx;
 
     if (selection == 0) {
         ok = 1;
+        matched = 1;
     }
     else {
         ok = (selection & OSSL_KEYMGMT_SELECT_ALL_PARAMETERS) != 0;
+        if (ok) {
+            matched = 1;
+        }
     }
 
-    WOLFPROV_LEAVE(WP_LOG_ECC, __FILE__ ":" WOLFPROV_STRINGIZE(__LINE__), ok);
+    WOLFPROV_LEAVE_SILENT(WP_LOG_ECC, __FILE__ ":" WOLFPROV_STRINGIZE(__LINE__), matched, err, ok);
     return ok;
 }
 
@@ -3052,19 +3058,25 @@ static wp_EccEncDecCtx* wp_ecc_spki_dec_new(WOLFPROV_CTX* provCtx)
 static int wp_ecc_spki_does_selection(WOLFPROV_CTX* provCtx, int selection)
 {
     int ok;
+    int matched = 0;
+    int err = 0;
 
-    WOLFPROV_ENTER(WP_LOG_ECC, "wp_ecc_spki_does_selection");
+    WOLFPROV_ENTER_NOEXIT(WP_LOG_ECC, "wp_ecc_spki_does_selection");
 
     (void)provCtx;
 
     if (selection == 0) {
         ok = 1;
+        matched = 1;
     }
     else {
         ok = (selection & OSSL_KEYMGMT_SELECT_PUBLIC_KEY) != 0;
+        if (ok) {
+            matched = 1;
+        }
     }
 
-    WOLFPROV_LEAVE(WP_LOG_ECC, __FILE__ ":" WOLFPROV_STRINGIZE(__LINE__), ok);
+    WOLFPROV_LEAVE_SILENT(WP_LOG_ECC, __FILE__ ":" WOLFPROV_STRINGIZE(__LINE__), matched, err, ok);
     return ok;
 }
 
@@ -3163,19 +3175,25 @@ static wp_EccEncDecCtx* wp_ecc_pki_dec_new(WOLFPROV_CTX* provCtx)
 static int wp_ecc_pki_does_selection(WOLFPROV_CTX* provCtx, int selection)
 {
     int ok;
+    int matched = 0;
+    int err = 0;
 
-    WOLFPROV_ENTER(WP_LOG_ECC, "wp_ecc_pki_does_selection");
+    WOLFPROV_ENTER_NOEXIT(WP_LOG_ECC, "wp_ecc_pki_does_selection");
 
     (void)provCtx;
 
     if (selection == 0) {
         ok = 1;
+        matched = 1;
     }
     else {
         ok = (selection & OSSL_KEYMGMT_SELECT_PRIVATE_KEY) != 0;
+        if (ok) {
+            matched = 1;
+        }
     }
 
-    WOLFPROV_LEAVE(WP_LOG_ECC, __FILE__ ":" WOLFPROV_STRINGIZE(__LINE__), ok);
+    WOLFPROV_LEAVE_SILENT(WP_LOG_ECC, __FILE__ ":" WOLFPROV_STRINGIZE(__LINE__), matched, err, ok);
     return ok;
 }
 
@@ -3335,20 +3353,28 @@ static int wp_ecc_x9_62_does_selection(WOLFPROV_CTX* provCtx,
     int selection)
 {
     int ok;
+    int matched = 0;
+    int err = 0;
 
-    WOLFPROV_ENTER(WP_LOG_ECC, "wp_ecc_x9_62_does_selection");
+    WOLFPROV_ENTER_NOEXIT(WP_LOG_ECC, "wp_ecc_x9_62_does_selection");
 
     (void)provCtx;
 
     if (selection == 0) {
         ok = 1;
+        matched = 1;  /* Always handles no selection */
     }
     else {
         ok = (selection & (OSSL_KEYMGMT_SELECT_ALL_PARAMETERS |
                            OSSL_KEYMGMT_SELECT_PRIVATE_KEY)) != 0;
+        if (ok) {
+            matched = 1;  /* Successfully handles X9.62 selection */
+        }
+        /* When ok = 0, this is expected behavior (probing), not an error */
     }
 
-    WOLFPROV_LEAVE(WP_LOG_ECC, __FILE__ ":" WOLFPROV_STRINGIZE(__LINE__), ok);
+    /* Conditional decoder leave: suppress benign probe 0s unless matched/err */
+    WOLFPROV_LEAVE_SILENT(WP_LOG_ECC, __FILE__ ":" WOLFPROV_STRINGIZE(__LINE__), matched, err, ok);
     return ok;
 }
 
@@ -3425,3 +3451,4 @@ const OSSL_DISPATCH wp_ecc_x9_62_pem_encoder_functions[] = {
 };
 
 #endif /* WP_HAVE_ECC */
+

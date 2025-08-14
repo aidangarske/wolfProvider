@@ -201,12 +201,12 @@ enum wolfProv_LogComponents {
 
 /* Manually set the log level */
 #ifndef WOLFPROV_LOG_LEVEL_FILTER
-#define WOLFPROV_LOG_LEVEL_FILTER WP_LOG_LEVEL_ALL
+#define WOLFPROV_LOG_LEVEL_FILTER WP_LOG_LEVEL_DEFAULT
 #endif
 
 /* Manually set the components */
 #ifndef WOLFPROV_LOG_COMPONENTS_FILTER
-#define WOLFPROV_LOG_COMPONENTS_FILTER WP_LOG_COMPONENTS_ALL
+#define WOLFPROV_LOG_COMPONENTS_FILTER WP_LOG_COMPONENTS_DEFAULT
 #endif
 
 /* Conditional logging macro that checks compile-time configuration */

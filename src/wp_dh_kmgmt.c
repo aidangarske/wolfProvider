@@ -2820,19 +2820,25 @@ static int wp_dh_type_specific_does_selection(WOLFPROV_CTX* provCtx,
     int selection)
 {
     int ok;
+    int matched = 0;
+    int err = 0;
 
-    WOLFPROV_ENTER(WP_LOG_DH, "wp_dh_type_specific_does_selection");
+    WOLFPROV_ENTER_NOEXIT(WP_LOG_DH, "wp_dh_type_specific_does_selection");
 
     (void)provCtx;
 
     if (selection == 0) {
         ok = 1;
+        matched = 1;
     }
     else {
         ok = (selection & OSSL_KEYMGMT_SELECT_ALL_PARAMETERS) != 0;
+        if (ok) {
+            matched = 1;
+        }
     }
 
-    WOLFPROV_LEAVE(WP_LOG_DH, __FILE__ ":" WOLFPROV_STRINGIZE(__LINE__), ok);
+    WOLFPROV_LEAVE_SILENT(WP_LOG_DH, __FILE__ ":" WOLFPROV_STRINGIZE(__LINE__), matched, err, ok);
     return ok;
 }
 
@@ -2936,19 +2942,25 @@ static wp_DhEncDecCtx* wp_dh_spki_dec_new(WOLFPROV_CTX* provCtx)
 static int wp_dh_spki_does_selection(WOLFPROV_CTX* provCtx, int selection)
 {
     int ok;
+    int matched = 0;
+    int err = 0;
 
-    WOLFPROV_ENTER(WP_LOG_DH, "wp_dh_spki_does_selection");
+    WOLFPROV_ENTER_NOEXIT(WP_LOG_DH, "wp_dh_spki_does_selection");
 
     (void)provCtx;
 
     if (selection == 0) {
         ok = 1;
+        matched = 1;
     }
     else {
         ok = (selection & OSSL_KEYMGMT_SELECT_PUBLIC_KEY) != 0;
+        if (ok) {
+            matched = 1;
+        }
     }
 
-    WOLFPROV_LEAVE(WP_LOG_DH, __FILE__ ":" WOLFPROV_STRINGIZE(__LINE__), ok);
+    WOLFPROV_LEAVE_SILENT(WP_LOG_DH, __FILE__ ":" WOLFPROV_STRINGIZE(__LINE__), matched, err, ok);
     return ok;
 }
 
@@ -3047,19 +3059,25 @@ static wp_DhEncDecCtx* wp_dh_pki_dec_new(WOLFPROV_CTX* provCtx)
 static int wp_dh_pki_does_selection(WOLFPROV_CTX* provCtx, int selection)
 {
     int ok;
+    int matched = 0;
+    int err = 0;
 
-    WOLFPROV_ENTER(WP_LOG_DH, "wp_dh_pki_does_selection");
+    WOLFPROV_ENTER_NOEXIT(WP_LOG_DH, "wp_dh_pki_does_selection");
 
     (void)provCtx;
 
     if (selection == 0) {
         ok = 1;
+        matched = 1;
     }
     else {
         ok = (selection & OSSL_KEYMGMT_SELECT_PRIVATE_KEY) != 0;
+        if (ok) {
+            matched = 1;
+        }
     }
 
-    WOLFPROV_LEAVE(WP_LOG_DH, __FILE__ ":" WOLFPROV_STRINGIZE(__LINE__), ok);
+    WOLFPROV_LEAVE_SILENT(WP_LOG_DH, __FILE__ ":" WOLFPROV_STRINGIZE(__LINE__), matched, err, ok);
     return ok;
 }
 

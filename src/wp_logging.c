@@ -280,8 +280,8 @@ void WOLFPROV_ENTER(int component, const char* msg)
 }
 
 /**
- * Log function used to record function entry for probe functions.
- * These functions use WOLFPROV_LEAVE_SILENT and may not show exit logs.
+ * Log function used to record function entry for check functions.
+ * These functions use WOLFPROV_LEAVE_SILENT and may not show up in logs.
  * The "[NOEXIT]" prefix indicates that exit logging may be suppressed.
  *
  * @param component [IN] Component type, from wolfProv_LogComponents enum.
@@ -289,11 +289,15 @@ void WOLFPROV_ENTER(int component, const char* msg)
  */
 void WOLFPROV_ENTER_NOEXIT(int component, const char* msg)
 {
+#ifdef WOLFPROV_DEBUG_LEAVE_VERBOSE
+    WOLFPROV_ENTER(component, msg);
+#else 
     if (loggingEnabled) {
         char buffer[WOLFPROV_MAX_LOG_WIDTH];
         XSNPRINTF(buffer, sizeof(buffer), "wolfProv Entering [NOEXIT] %s", msg);
         wolfprovider_log(WP_LOG_ENTER, component, buffer);
     }
+#endif
 }
 
 /**
