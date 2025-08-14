@@ -2068,7 +2068,7 @@ static int wp_ecc_decode_x963_pub(wp_Ecc* ecc, unsigned char* data, word32 len)
     int matched = 0;
     int err = 0;
 
-    WOLFPROV_ENTER(WP_LOG_ECC, "wp_ecc_decode_x963_pub");
+    WOLFPROV_ENTER_NOEXIT(WP_LOG_ECC, "wp_ecc_decode_x963_pub");
 
     rc = wc_ecc_import_x963((const byte *)data, len, &ecc->key);
     if (rc != 0) {

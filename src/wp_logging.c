@@ -280,6 +280,23 @@ void WOLFPROV_ENTER(int component, const char* msg)
 }
 
 /**
+ * Log function used to record function entry for probe functions.
+ * These functions use WOLFPROV_LEAVE_SILENT and may not show exit logs.
+ * The "[NOEXIT]" prefix indicates that exit logging may be suppressed.
+ *
+ * @param component [IN] Component type, from wolfProv_LogComponents enum.
+ * @param msg  [IN] Log message.
+ */
+void WOLFPROV_ENTER_NOEXIT(int component, const char* msg)
+{
+    if (loggingEnabled) {
+        char buffer[WOLFPROV_MAX_LOG_WIDTH];
+        XSNPRINTF(buffer, sizeof(buffer), "wolfProv Entering [NOEXIT] %s", msg);
+        wolfprovider_log(WP_LOG_ENTER, component, buffer);
+    }
+}
+
+/**
  * Log function used to record function exit. Extended for function name.
  *
  * @param component [IN] Component type, from wolfProv_LogComponents enum.
@@ -300,8 +317,8 @@ void WOLFPROV_LEAVE_EX(int component, const char* func, const char* msg,
 
 /**
  * Log function to suppress errors that are not real errors. This function 
- * is used to suppress benign probe failures (ret == 0) unless err is set
- * (indicating a real error) or the envelope matched but failed (emit DEBUG).
+ * only prints if ret == 1 (success) AND matched is set (probe envelope matched).
+ * All other cases are suppressed by default to reduce noise from probe failures.
  * Define WOLFPROV_DEBUG_LEAVE_VERBOSE to restore full probe LEAVE output
  * (log all returns including ret == 0).
  *
@@ -322,16 +339,15 @@ void WOLFPROV_LEAVE_SILENT_EX(int component, const char* func,
     /* Legacy behavior: log all returns including return 0 */
     WOLFPROV_LEAVE_EX(component, func, msg, ret);
 #else
-    if (ret == 1) { /* Success - log normally */
+    /* Probe successful, print if ok == 1 AND matched */
+    if (ret == 1 && matched) {
         WOLFPROV_LEAVE_EX(component, func, msg, ret);
     }
-    else if (err) { /* Error - log for debugging */
+    /* Probe failed, print if err */
+    else if (err) {
         WOLFPROV_LEAVE_EX(component, func, msg, ret);
     }
-    else if (matched) { /* Matched but error - log for debugging */
-        WOLFPROV_LEAVE_EX(component, func, msg, ret);
-    }
-    /* else: pure probe miss -> suppress by default */
+    /* else: suppress all other cases by default */
 #endif
 }
 

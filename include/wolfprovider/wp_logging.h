@@ -234,8 +234,6 @@ int wolfProv_SetLogComponents(int componentMask);
 
 #ifdef WOLFPROV_DEBUG
 
-#define WOLFPROV_DEBUG_LEAVE_VERBOSE
-
 #define WOLFPROV_STRINGIZE_HELPER(x) #x
 #define WOLFPROV_STRINGIZE(x) WOLFPROV_STRINGIZE_HELPER(x)
 
@@ -249,6 +247,7 @@ int wolfProv_SetLogComponents(int componentMask);
     WOLFPROV_ERROR_FUNC_NULL_LINE(type, funcName, ret, __FILE__, __LINE__)
 
 void WOLFPROV_ENTER(int type, const char* msg);
+void WOLFPROV_ENTER_NOEXIT(int type, const char* msg);
 #define WOLFPROV_LEAVE(type, msg, ret) \
     WOLFPROV_LEAVE_EX(type, WOLFPROV_FUNC_NAME, msg, ret)
 void WOLFPROV_LEAVE_EX(int type, const char* func, const char* msg, int ret);
@@ -273,6 +272,7 @@ void WOLFPROV_BUFFER(int type, const unsigned char* buffer,
 #else /* WOLFPROV_DEBUG */
 
 #define WOLFPROV_ENTER(t, m)
+#define WOLFPROV_ENTER_NOEXIT(t, m)
 #define WOLFPROV_LEAVE(t, f, m, r)
 #define WOLFPROV_LEAVE_SILENT(t, f, m, e, r)
 #define WOLFPROV_MSG(t, m, ...)
