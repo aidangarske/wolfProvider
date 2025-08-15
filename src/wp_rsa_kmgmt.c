@@ -1991,7 +1991,6 @@ static int wp_rsa_find_oid(unsigned char* data, word32 len, unsigned char* oid,
 {
     int ok = 0;
     int matched = 0;
-    int err = 0;
     word32 i;
 
     WOLFPROV_ENTER_NOEXIT(WP_LOG_RSA, "wp_rsa_find_oid");
@@ -2005,9 +2004,10 @@ static int wp_rsa_find_oid(unsigned char* data, word32 len, unsigned char* oid,
             break;
         }
     }
-    
-    /* ok = 0 when OID not found is expected during algorithm check */
-    WOLFPROV_LEAVE_SILENT(WP_LOG_RSA, __FILE__ ":" WOLFPROV_STRINGIZE(__LINE__), matched, err, ok);
+
+    WOLFPROV_LEAVE_SILENT(WP_LOG_RSA, __FILE__ ":" WOLFPROV_STRINGIZE(__LINE__),
+        matched, ok);
+    (void)matched;
     return ok;
 }
 
@@ -2196,10 +2196,11 @@ static int wp_rsa_pss_get_params(wp_Rsa* rsa, unsigned char* data, word32 len)
 static int wp_rsa_decode_spki(wp_Rsa* rsa, unsigned char* data, word32 len)
 {
     int ok = 1;
+    int matched = 0;
     int rc;
     word32 idx = 0;
 
-    WOLFPROV_ENTER(WP_LOG_RSA, "wp_rsa_decode_spki");
+    WOLFPROV_ENTER_NOEXIT(WP_LOG_RSA, "wp_rsa_decode_spki");
 
     if (!wolfssl_prov_is_running()) {
         ok = 0;
@@ -2219,14 +2220,19 @@ static int wp_rsa_decode_spki(wp_Rsa* rsa, unsigned char* data, word32 len)
          * keys. If we dont reject then the keytype gets set to RSA-PSS
          * which is wrong. For non-pkcs8 fail here for PSS decoder
          * and let the base RSA pick it up instead */
-        ok = wp_rsa_pss_get_params(rsa, data, len);
+        if (!wp_rsa_pss_get_params(rsa, data, len)) {
+            ok = 0;
+        }
     }
     if (ok) {
         rsa->bits = wc_RsaEncryptSize(&rsa->key) * 8;
         rsa->hasPub = 1;
+        matched = 1;
     }
 
-    WOLFPROV_LEAVE(WP_LOG_RSA, __FILE__ ":" WOLFPROV_STRINGIZE(__LINE__), ok);
+    WOLFPROV_LEAVE_SILENT(WP_LOG_RSA, __FILE__ ":" WOLFPROV_STRINGIZE(__LINE__),
+        matched, ok);
+    (void)matched;
     return ok;
 }
 
@@ -2242,10 +2248,11 @@ static int wp_rsa_decode_spki(wp_Rsa* rsa, unsigned char* data, word32 len)
 static int wp_rsa_decode_pki(wp_Rsa* rsa, unsigned char* data, word32 len)
 {
     int ok = 1;
+    int matched = 0;
     int rc;
     word32 idx = 0;
 
-    WOLFPROV_ENTER(WP_LOG_RSA, "wp_rsa_decode_pki");
+    WOLFPROV_ENTER_NOEXIT(WP_LOG_RSA, "wp_rsa_decode_pki");
 
     if (!wolfssl_prov_is_running()) {
         ok = 0;
@@ -2264,7 +2271,7 @@ static int wp_rsa_decode_pki(wp_Rsa* rsa, unsigned char* data, word32 len)
         if (rc >= 0) {
             rc = wc_RsaPrivateKeyDecode(data, &idx, &rsa->key, len);
             if (rc == 0) {
-                 ok = 1;
+                ok = 1;
             }
         }
     }
@@ -2273,15 +2280,20 @@ static int wp_rsa_decode_pki(wp_Rsa* rsa, unsigned char* data, word32 len)
         ok = 0;
     }
     if (ok && (rsa->type == RSA_FLAG_TYPE_RSASSAPSS)) {
-        ok = wp_rsa_pss_get_params(rsa, data, len);
+        if (!wp_rsa_pss_get_params(rsa, data, len)) {
+            ok = 0;
+        }
     }
     if (ok) {
         rsa->bits = wc_RsaEncryptSize(&rsa->key) * 8;
         rsa->hasPub = 1;
         rsa->hasPriv = 1;
+        matched = 1;
     }
 
-    WOLFPROV_LEAVE(WP_LOG_RSA, __FILE__ ":" WOLFPROV_STRINGIZE(__LINE__), ok);
+    WOLFPROV_LEAVE_SILENT(WP_LOG_RSA, __FILE__ ":" WOLFPROV_STRINGIZE(__LINE__),
+        matched, ok);
+    (void)matched;
     return ok;
 }
 
@@ -2305,19 +2317,23 @@ unsigned char pbkdf2_oid[] = {
 static int wp_rsa_find_pbkdf2_oid(unsigned char* data, word32 len)
 {
     int ok = 0;
+    int matched = 0;
     word32 i;
 
-    WOLFPROV_ENTER(WP_LOG_RSA, "wp_rsa_find_pbkdf2_oid");
+    WOLFPROV_ENTER_NOEXIT(WP_LOG_RSA, "wp_rsa_find_pbkdf2_oid");
 
     for (i = 0; i < 40 && i + PBKDF2_OID_SZ < len; i++) {
         /* Find the base OID. */
         if (XMEMCMP(data + i, pbkdf2_oid, PBKDF2_OID_SZ) == 0) {
             ok = 1;
+            matched = 1;  /* Found the PBKDF2 OID */
             break;
         }
     }
 
-    WOLFPROV_LEAVE(WP_LOG_RSA, __FILE__ ":" WOLFPROV_STRINGIZE(__LINE__), ok);
+    WOLFPROV_LEAVE_SILENT(WP_LOG_RSA, __FILE__ ":" WOLFPROV_STRINGIZE(__LINE__),
+        matched, ok);
+    (void)matched;
     return ok;
 }
 
@@ -2333,13 +2349,14 @@ static int wp_rsa_find_pbkdf2_oid(unsigned char* data, word32 len)
  * @return  0 on failure.
  */
 static int wp_rsa_decode_enc_pki(wp_Rsa* rsa, unsigned char* data, word32 len,
-     OSSL_PASSPHRASE_CALLBACK* pwCb, void* pwCbArg)
+    OSSL_PASSPHRASE_CALLBACK* pwCb, void* pwCbArg)
 {
     int ok = 1;
+    int matched = 0;
     char password[1024];
     size_t passwordSz = sizeof(password);
 
-    WOLFPROV_ENTER(WP_LOG_RSA, "wp_rsa_decode_enc_pki");
+    WOLFPROV_ENTER_NOEXIT(WP_LOG_RSA, "wp_rsa_decode_enc_pki");
     
     if (!wolfssl_prov_is_running()) {
         ok = 0;
@@ -2367,9 +2384,14 @@ static int wp_rsa_decode_enc_pki(wp_Rsa* rsa, unsigned char* data, word32 len,
     if (ok) {
         /* Decode private key. */
         ok = wp_rsa_decode_pki(rsa, data, len);
+        if (ok) {
+            matched = 1;
+        }
     }
 
-    WOLFPROV_LEAVE(WP_LOG_RSA, __FILE__ ":" WOLFPROV_STRINGIZE(__LINE__), ok);
+    WOLFPROV_LEAVE_SILENT(WP_LOG_RSA, __FILE__ ":" WOLFPROV_STRINGIZE(__LINE__),
+        matched, ok);
+    (void)matched;
     return ok;
 }
 
@@ -3414,7 +3436,6 @@ static int wp_rsa_spki_does_selection(WOLFPROV_CTX* provCtx, int selection)
 {
     int ok;
     int matched = 0;
-    int err = 0;
 
     WOLFPROV_ENTER_NOEXIT(WP_LOG_RSA, "wp_rsa_spki_does_selection");
 
@@ -3431,7 +3452,9 @@ static int wp_rsa_spki_does_selection(WOLFPROV_CTX* provCtx, int selection)
         }
     }
 
-    WOLFPROV_LEAVE_SILENT(WP_LOG_RSA, __FILE__ ":" WOLFPROV_STRINGIZE(__LINE__), matched, err, ok);
+    WOLFPROV_LEAVE_SILENT(WP_LOG_RSA, __FILE__ ":" WOLFPROV_STRINGIZE(__LINE__),
+        matched, ok);
+    (void)matched;
     return ok;
 }
 
@@ -3534,7 +3557,6 @@ static int wp_rsa_pki_does_selection(WOLFPROV_CTX* provCtx, int selection)
 {
     int ok;
     int matched = 0;
-    int err = 0;
 
     WOLFPROV_ENTER_NOEXIT(WP_LOG_RSA, "wp_rsa_pki_does_selection");
 
@@ -3549,10 +3571,11 @@ static int wp_rsa_pki_does_selection(WOLFPROV_CTX* provCtx, int selection)
         if (ok) {
             matched = 1;
         }
-        /* When ok = 0, this is expected behavior (probing), not an error */
     }
 
-    WOLFPROV_LEAVE_SILENT(WP_LOG_RSA, __FILE__ ":" WOLFPROV_STRINGIZE(__LINE__), matched, err, ok);
+    WOLFPROV_LEAVE_SILENT(WP_LOG_RSA, __FILE__ ":" WOLFPROV_STRINGIZE(__LINE__),
+        matched, ok);
+    (void)matched;
     return ok;
 }
 
@@ -3717,7 +3740,6 @@ static int wp_rsa_legacy_does_selection(WOLFPROV_CTX* provCtx, int selection)
 {
     int ok;
     int matched = 0;
-    int err = 0;
 
     WOLFPROV_ENTER_NOEXIT(WP_LOG_RSA, "wp_rsa_legacy_does_selection");
 
@@ -3734,7 +3756,9 @@ static int wp_rsa_legacy_does_selection(WOLFPROV_CTX* provCtx, int selection)
         }
     }
 
-    WOLFPROV_LEAVE_SILENT(WP_LOG_RSA, __FILE__ ":" WOLFPROV_STRINGIZE(__LINE__), matched, err, ok);
+    WOLFPROV_LEAVE_SILENT(WP_LOG_RSA, __FILE__ ":" WOLFPROV_STRINGIZE(__LINE__),
+        matched, ok);
+    (void)matched;
     return ok;
 }
 
@@ -3777,7 +3801,6 @@ static int wp_rsa_kp_does_selection(WOLFPROV_CTX* provCtx, int selection)
 {
     int ok;
     int matched = 0;
-    int err = 0;
 
     WOLFPROV_ENTER_NOEXIT(WP_LOG_RSA, "wp_rsa_kp_does_selection");
 
@@ -3794,7 +3817,9 @@ static int wp_rsa_kp_does_selection(WOLFPROV_CTX* provCtx, int selection)
         }
     }
 
-    WOLFPROV_LEAVE_SILENT(WP_LOG_RSA, __FILE__ ":" WOLFPROV_STRINGIZE(__LINE__), matched, err, ok);
+    WOLFPROV_LEAVE_SILENT(WP_LOG_RSA, __FILE__ ":" WOLFPROV_STRINGIZE(__LINE__),
+        matched, ok);
+    (void)matched;
     return ok;
 }
 
@@ -4055,7 +4080,6 @@ static int wp_rsa_text_enc_does_selection(WOLFPROV_CTX* provCtx, int selection)
 {
     int ok;
     int matched = 0;
-    int err = 0;
 
     WOLFPROV_ENTER_NOEXIT(WP_LOG_RSA, "wp_rsa_text_enc_does_selection");
 
@@ -4074,7 +4098,9 @@ static int wp_rsa_text_enc_does_selection(WOLFPROV_CTX* provCtx, int selection)
         }
     }
 
-    WOLFPROV_LEAVE_SILENT(WP_LOG_RSA, __FILE__ ":" WOLFPROV_STRINGIZE(__LINE__), matched, err, ok);
+    WOLFPROV_LEAVE_SILENT(WP_LOG_RSA, __FILE__ ":" WOLFPROV_STRINGIZE(__LINE__),
+        matched, ok);
+    (void)matched;
     return ok;
 }
 

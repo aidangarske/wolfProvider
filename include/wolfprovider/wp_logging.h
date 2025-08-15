@@ -251,10 +251,10 @@ void WOLFPROV_ENTER_NOEXIT(int type, const char* msg);
 #define WOLFPROV_LEAVE(type, msg, ret) \
     WOLFPROV_LEAVE_EX(type, WOLFPROV_FUNC_NAME, msg, ret)
 void WOLFPROV_LEAVE_EX(int type, const char* func, const char* msg, int ret);
-#define WOLFPROV_LEAVE_SILENT(type, msg, matched, err, ret) \
-    WOLFPROV_LEAVE_SILENT_EX(type, WOLFPROV_FUNC_NAME, msg, matched, err, ret)
+#define WOLFPROV_LEAVE_SILENT(type, msg, matched, ret) \
+    WOLFPROV_LEAVE_SILENT_EX(type, WOLFPROV_FUNC_NAME, msg, matched, ret)
 void WOLFPROV_LEAVE_SILENT_EX(int type, const char* func, const char* msg,
-    int matched, int err, int ret);
+    int matched, int ret);
 void WOLFPROV_MSG(int type, const char* fmt, ...);
 void WOLFPROV_MSG_VERBOSE(int type, const char* fmt, ...);
 void WOLFPROV_MSG_DEBUG(int type, const char* fmt, ...);
@@ -273,8 +273,8 @@ void WOLFPROV_BUFFER(int type, const unsigned char* buffer,
 
 #define WOLFPROV_ENTER(t, m)
 #define WOLFPROV_ENTER_NOEXIT(t, m)
-#define WOLFPROV_LEAVE(t, f, m, r)
-#define WOLFPROV_LEAVE_SILENT(t, f, m, e, r)
+#define WOLFPROV_LEAVE(t, f, r)
+#define WOLFPROV_LEAVE_SILENT(t, f, m, r)
 #define WOLFPROV_MSG(t, m, ...)
 #define WOLFPROV_MSG_VERBOSE(t, m, ...)
 #define WOLFPROV_MSG_DEBUG(t, m, ...)

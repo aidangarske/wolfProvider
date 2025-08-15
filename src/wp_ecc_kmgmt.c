@@ -2003,10 +2003,11 @@ static int wp_ecc_get_curve_id_from_oid(unsigned char* oid, int len)
 static int wp_ecc_decode_params(wp_Ecc* ecc, unsigned char* data, word32 len)
 {
     int ok = 1;
+    int matched = 0;
     int rc;
     word32 oidLen;
 
-    WOLFPROV_ENTER(WP_LOG_ECC, "wp_ecc_decode_params");
+    WOLFPROV_ENTER_NOEXIT(WP_LOG_ECC, "wp_ecc_decode_params");
 
     /* TODO: manually decoding as wolfSSL doesn't offer API to do this. */
     if (len < 3) {
@@ -2047,7 +2048,13 @@ static int wp_ecc_decode_params(wp_Ecc* ecc, unsigned char* data, word32 len)
         ok = 0;
     }
 
-    WOLFPROV_LEAVE(WP_LOG_ECC, __FILE__ ":" WOLFPROV_STRINGIZE(__LINE__), ok);
+    if (ok) {
+        matched = 1;
+    }
+    
+    WOLFPROV_LEAVE_SILENT(WP_LOG_ECC, __FILE__ ":" WOLFPROV_STRINGIZE(__LINE__),
+        matched, ok);
+    (void)matched;
     return ok;
 }
 
@@ -2066,7 +2073,6 @@ static int wp_ecc_decode_x963_pub(wp_Ecc* ecc, unsigned char* data, word32 len)
     int ok = 1;
     int rc;
     int matched = 0;
-    int err = 0;
 
     WOLFPROV_ENTER_NOEXIT(WP_LOG_ECC, "wp_ecc_decode_x963_pub");
 
@@ -2081,12 +2087,12 @@ static int wp_ecc_decode_x963_pub(wp_Ecc* ecc, unsigned char* data, word32 len)
         /* Needs curveId set. */
         if (!wp_ecc_set_bits(ecc)) {
             ok = 0;
-            err = 1;
         }
     }
 
-    /* Conditional decoder leave: suppress benign probe 0s unless matched/err */
-    WOLFPROV_LEAVE_SILENT(WP_LOG_ECC, __FILE__ ":" WOLFPROV_STRINGIZE(__LINE__), matched, err, ok);
+    WOLFPROV_LEAVE_SILENT(WP_LOG_ECC, __FILE__ ":" WOLFPROV_STRINGIZE(__LINE__),
+        matched, ok);
+    (void)matched;
     return ok;
 }
 
@@ -2102,10 +2108,11 @@ static int wp_ecc_decode_x963_pub(wp_Ecc* ecc, unsigned char* data, word32 len)
 static int wp_ecc_decode_spki(wp_Ecc* ecc, unsigned char* data, word32 len)
 {
     int ok = 1;
+    int matched = 0;
     int rc;
     word32 idx = 0;
 
-    WOLFPROV_ENTER(WP_LOG_ECC, "wp_ecc_decode_spki");
+    WOLFPROV_ENTER_NOEXIT(WP_LOG_ECC, "wp_ecc_decode_spki");
 
     if (!wolfssl_prov_is_running()) {
         ok = 0;
@@ -2125,7 +2132,12 @@ static int wp_ecc_decode_spki(wp_Ecc* ecc, unsigned char* data, word32 len)
         }
     }
 
-    WOLFPROV_LEAVE(WP_LOG_ECC, __FILE__ ":" WOLFPROV_STRINGIZE(__LINE__), ok);
+    if (ok) {
+        matched = 1;
+    }
+    WOLFPROV_LEAVE_SILENT(WP_LOG_ECC, __FILE__ ":" WOLFPROV_STRINGIZE(__LINE__),
+        matched, ok);
+    (void)matched;
     return ok;
 }
 
@@ -2141,10 +2153,11 @@ static int wp_ecc_decode_spki(wp_Ecc* ecc, unsigned char* data, word32 len)
 static int wp_ecc_decode_pki(wp_Ecc* ecc, unsigned char* data, word32 len)
 {
     int ok = 1;
+    int matched = 0;
     int rc;
     word32 idx = 0;
 
-    WOLFPROV_ENTER(WP_LOG_ECC, "wp_ecc_decode_pki");
+    WOLFPROV_ENTER_NOEXIT(WP_LOG_ECC, "wp_ecc_decode_pki");
 
     if (!wolfssl_prov_is_running()) {
         ok = 0;
@@ -2186,7 +2199,12 @@ static int wp_ecc_decode_pki(wp_Ecc* ecc, unsigned char* data, word32 len)
         ecc->hasPub = 1;
     }
 
-    WOLFPROV_LEAVE(WP_LOG_ECC, __FILE__ ":" WOLFPROV_STRINGIZE(__LINE__), ok);
+    if (ok) {
+        matched = 1;
+    }
+    WOLFPROV_LEAVE_SILENT(WP_LOG_ECC, __FILE__ ":" WOLFPROV_STRINGIZE(__LINE__),
+        matched, ok);
+    (void)matched;
     return ok;
 }
 
@@ -2936,7 +2954,6 @@ static int wp_ecc_type_specific_does_selection(WOLFPROV_CTX* provCtx,
 {
     int ok;
     int matched = 0;
-    int err = 0;
 
     WOLFPROV_ENTER_NOEXIT(WP_LOG_ECC, "wp_ecc_type_specific_does_selection");
 
@@ -2953,7 +2970,9 @@ static int wp_ecc_type_specific_does_selection(WOLFPROV_CTX* provCtx,
         }
     }
 
-    WOLFPROV_LEAVE_SILENT(WP_LOG_ECC, __FILE__ ":" WOLFPROV_STRINGIZE(__LINE__), matched, err, ok);
+    WOLFPROV_LEAVE_SILENT(WP_LOG_ECC, __FILE__ ":" WOLFPROV_STRINGIZE(__LINE__),
+        matched, ok);
+    (void)matched;
     return ok;
 }
 
@@ -3059,7 +3078,6 @@ static int wp_ecc_spki_does_selection(WOLFPROV_CTX* provCtx, int selection)
 {
     int ok;
     int matched = 0;
-    int err = 0;
 
     WOLFPROV_ENTER_NOEXIT(WP_LOG_ECC, "wp_ecc_spki_does_selection");
 
@@ -3075,8 +3093,10 @@ static int wp_ecc_spki_does_selection(WOLFPROV_CTX* provCtx, int selection)
             matched = 1;
         }
     }
-
-    WOLFPROV_LEAVE_SILENT(WP_LOG_ECC, __FILE__ ":" WOLFPROV_STRINGIZE(__LINE__), matched, err, ok);
+    
+    WOLFPROV_LEAVE_SILENT(WP_LOG_ECC, __FILE__ ":" WOLFPROV_STRINGIZE(__LINE__),
+        matched, ok);
+    (void)matched;
     return ok;
 }
 
@@ -3176,7 +3196,6 @@ static int wp_ecc_pki_does_selection(WOLFPROV_CTX* provCtx, int selection)
 {
     int ok;
     int matched = 0;
-    int err = 0;
 
     WOLFPROV_ENTER_NOEXIT(WP_LOG_ECC, "wp_ecc_pki_does_selection");
 
@@ -3192,8 +3211,10 @@ static int wp_ecc_pki_does_selection(WOLFPROV_CTX* provCtx, int selection)
             matched = 1;
         }
     }
-
-    WOLFPROV_LEAVE_SILENT(WP_LOG_ECC, __FILE__ ":" WOLFPROV_STRINGIZE(__LINE__), matched, err, ok);
+    
+    WOLFPROV_LEAVE_SILENT(WP_LOG_ECC, __FILE__ ":" WOLFPROV_STRINGIZE(__LINE__),
+        matched, ok);
+    (void)matched;
     return ok;
 }
 
@@ -3354,7 +3375,6 @@ static int wp_ecc_x9_62_does_selection(WOLFPROV_CTX* provCtx,
 {
     int ok;
     int matched = 0;
-    int err = 0;
 
     WOLFPROV_ENTER_NOEXIT(WP_LOG_ECC, "wp_ecc_x9_62_does_selection");
 
@@ -3362,19 +3382,19 @@ static int wp_ecc_x9_62_does_selection(WOLFPROV_CTX* provCtx,
 
     if (selection == 0) {
         ok = 1;
-        matched = 1;  /* Always handles no selection */
+        matched = 1;
     }
     else {
         ok = (selection & (OSSL_KEYMGMT_SELECT_ALL_PARAMETERS |
                            OSSL_KEYMGMT_SELECT_PRIVATE_KEY)) != 0;
         if (ok) {
-            matched = 1;  /* Successfully handles X9.62 selection */
+            matched = 1;
         }
-        /* When ok = 0, this is expected behavior (probing), not an error */
     }
 
-    /* Conditional decoder leave: suppress benign probe 0s unless matched/err */
-    WOLFPROV_LEAVE_SILENT(WP_LOG_ECC, __FILE__ ":" WOLFPROV_STRINGIZE(__LINE__), matched, err, ok);
+    WOLFPROV_LEAVE_SILENT(WP_LOG_ECC, __FILE__ ":" WOLFPROV_STRINGIZE(__LINE__),
+        matched, ok);
+    (void)matched;
     return ok;
 }
 
@@ -3451,4 +3471,5 @@ const OSSL_DISPATCH wp_ecc_x9_62_pem_encoder_functions[] = {
 };
 
 #endif /* WP_HAVE_ECC */
+
 

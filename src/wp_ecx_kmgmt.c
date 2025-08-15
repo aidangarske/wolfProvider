@@ -2196,7 +2196,6 @@ static int wp_ecx_spki_does_selection(WOLFPROV_CTX* provCtx, int selection)
 {
     int ok = 0;
     int matched = 0;
-    int err = 0;
 
     WOLFPROV_ENTER_NOEXIT(WP_LOG_KE, "wp_ecx_spki_does_selection");
 
@@ -2213,7 +2212,9 @@ static int wp_ecx_spki_does_selection(WOLFPROV_CTX* provCtx, int selection)
         }
     }
 
-    WOLFPROV_LEAVE_SILENT(WP_LOG_KE, __FILE__ ":" WOLFPROV_STRINGIZE(__LINE__), matched, err, ok);
+    WOLFPROV_LEAVE_SILENT(WP_LOG_KE, __FILE__ ":" WOLFPROV_STRINGIZE(__LINE__),
+        matched, ok);
+(void)matched;
     return ok;
 }
 
@@ -2233,7 +2234,6 @@ static int wp_ecx_pki_does_selection(WOLFPROV_CTX* provCtx, int selection)
 {
     int ok;
     int matched = 0;
-    int err = 0;
 
     WOLFPROV_ENTER_NOEXIT(WP_LOG_KE, "wp_ecx_pki_does_selection");
 
@@ -2250,7 +2250,9 @@ static int wp_ecx_pki_does_selection(WOLFPROV_CTX* provCtx, int selection)
         }
     }
 
-    WOLFPROV_LEAVE_SILENT(WP_LOG_KE, __FILE__ ":" WOLFPROV_STRINGIZE(__LINE__), matched, err, ok);
+    WOLFPROV_LEAVE_SILENT(WP_LOG_KE, __FILE__ ":" WOLFPROV_STRINGIZE(__LINE__),
+        matched, ok);
+    (void)matched;
     return ok;
 }
 

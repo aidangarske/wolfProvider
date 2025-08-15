@@ -289,15 +289,15 @@ void WOLFPROV_ENTER(int component, const char* msg)
  */
 void WOLFPROV_ENTER_NOEXIT(int component, const char* msg)
 {
-#ifdef WOLFPROV_DEBUG_LEAVE_VERBOSE
-    WOLFPROV_ENTER(component, msg);
-#else 
     if (loggingEnabled) {
+#ifdef WOLFPROV_LEAVE_SILENT_MODE
         char buffer[WOLFPROV_MAX_LOG_WIDTH];
         XSNPRINTF(buffer, sizeof(buffer), "wolfProv Entering [NOEXIT] %s", msg);
         wolfprovider_log(WP_LOG_ENTER, component, buffer);
-    }
+#else
+        WOLFPROV_ENTER(component, msg);
 #endif
+    }
 }
 
 /**
@@ -320,39 +320,35 @@ void WOLFPROV_LEAVE_EX(int component, const char* func, const char* msg,
 }
 
 /**
- * Log function to suppress errors that are not real errors. This function 
- * only prints if ret == 1 (success) AND matched is set (probe envelope matched).
- * All other cases are suppressed by default to reduce noise from probe failures.
- * Define WOLFPROV_DEBUG_LEAVE_VERBOSE to restore full probe LEAVE output
- * (log all returns including ret == 0).
+ * Log function to suppress LEAVE messages. This function only prints if
+ * ret == 1 AND matched is set. All other cases are suppressed by default
+ * to reduce noise from probe failures. Define WOLFPROV_LEAVE_SILENT to 
+ * enable this logic.
  *
  * @param component [IN] Component type, from wolfProv_LogComponents enum.
- * @param func      [IN] Name of function that is exiting.
- * @param msg       [IN] Log message (typically file:line).
- * @param matched   [IN] Nonzero if the probe envelope matched.
- * @param err       [IN] Nonzero if a real error occurred.
- * @param ret       [IN] Value that function will be returning.
+ * @param func    [IN] Name of function that is exiting.
+ * @param msg     [IN] Log message (typically file:line).
+ * @param matched [IN] Nonzero if the probe envelope matched.
+ * @param ret     [IN] Value that function will be returning.
  */
 void WOLFPROV_LEAVE_SILENT_EX(int component, const char* func, 
-                              const char* msg, int matched,
-                              int err, int ret)
+                              const char* msg, int matched, int ret)
 {
-#ifdef WOLFPROV_DEBUG_LEAVE_VERBOSE
-    (void)matched;
-    (void)err;
-    /* Legacy behavior: log all returns including return 0 */
-    WOLFPROV_LEAVE_EX(component, func, msg, ret);
+    if (loggingEnabled) {
+#ifdef WOLFPROV_LEAVE_SILENT_MODE
+        /* Success with match - always print */
+        if (ret == 1 && matched == 1) {
+            WOLFPROV_LEAVE_EX(component, func, msg, ret);
+        }
+        else {
+            /* Anything else is suppressed */
+        }
 #else
-    /* Probe successful, print if ok == 1 AND matched */
-    if (ret == 1 && matched) {
+        (void)matched;
+        /* Legacy behavior: log all returns including return 0 */
         WOLFPROV_LEAVE_EX(component, func, msg, ret);
-    }
-    /* Probe failed, print if err */
-    else if (err) {
-        WOLFPROV_LEAVE_EX(component, func, msg, ret);
-    }
-    /* else: suppress all other cases by default */
 #endif
+    }
 }
 
 /**
