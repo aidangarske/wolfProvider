@@ -1,0 +1,58 @@
+name: Build Matrix
+
+on:
+  workflow_call:
+    inputs:
+      template_path:
+        description: "Path to matrix template (YAML or JSON)"
+        required: true
+        type: string
+    outputs:
+      matrix:
+        description: "Matrix JSON"
+        value: ${{ jobs.build.outputs.matrix }}
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    outputs:
+      matrix: ${{ steps.out.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Ensure yq present
+        run: |
+          if ! command -v yq >/dev/null 2>&1; then
+            YQ_VER=v4.44.3
+            curl -sSL -o yq https://github.com/mikefarah/yq/releases/download/${YQ_VER}/yq_linux_amd64
+            sudo install yq /usr/local/bin/yq
+          fi
+
+      - name: Load template and convert to JSON
+        id: load
+        run: |
+          MATRIX_JSON=$(yq -o=json '.' "${{ inputs.template_path }}")
+
+          REPO_MAP='{
+            "wolfssl_ref": "wolfssl/wolfssl",
+            "openssl_ref": "openssl/openssl",
+            "grpc_ref": "grpc/grpc",
+            "curl_ref": "curl/curl"
+          }'
+
+          for key in $(echo "$MATRIX_JSON" | jq -r 'keys[]'); do
+            val=$(echo "$MATRIX_JSON" | jq -r --arg k "$key" '.[$k]')
+            if [ "$val" = "auto" ]; then
+              repo=$(echo "$REPO_MAP" | jq -r --arg k "$key" '.[$k]')
+              if [ "$repo" != "null" ]; then
+                latest=$(curl -fsSL "https://api.github.com/repos/$repo/releases/latest" | jq -r .tag_name)
+                MATRIX_JSON=$(echo "$MATRIX_JSON" | jq --arg k "$key" --argjson arr "[\"master\",\"$latest\"]" '.[$k]=$arr')
+              fi
+            fi
+          done
+
+          echo "matrix=$MATRIX_JSON" >> "$GITHUB_OUTPUT"
+
+      - id: out
+        run: |
+          echo "matrix=${{ steps.load.outputs.matrix }}" >> "$GITHUB_OUTPUT"

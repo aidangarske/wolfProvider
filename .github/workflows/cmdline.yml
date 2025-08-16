@@ -13,17 +13,31 @@ concurrency:
 # END OF COMMON SECTION
 
 jobs:
+  resolve-versions:
+    uses: ./.github/workflows/resolve-versions.yml
+
+  build-matrix:
+    uses: ./.github/workflows/build-matrix.yml
+    needs: resolve-versions
+    with:
+      openssl_latest: ${{ needs.resolve-versions.outputs.openssl_latest }}
+      wolfssl_latest: ${{ needs.resolve-versions.outputs.wolfssl_latest }}
+
   cmdtest_test:
-    name: Command line test
     runs-on: ubuntu-22.04
-    timeout-minutes: 20
+    needs: 
+      - resolve-versions
+      - build-matrix
     strategy:
-      matrix:
-        openssl_ref: [ 'master', 'openssl-3.5.0' ]
-        wolfssl_ref: [ 'master', 'v5.8.0-stable' ]
-        force_fail: ['WOLFPROV_FORCE_FAIL=1', '']
-        debug: ['WOLFPROV_DEBUG=1', '']
+      matrix: ${{ fromJSON(needs.build-matrix.outputs.matrix) }}
     steps:
+      - name: Show matrix
+        run: |
+          echo "OpenSSL ref: ${{ matrix.openssl_ref }}"
+          echo "WolfSSL ref: ${{ matrix.wolfssl_ref }}"
+          echo "force_fail ref: ${{ matrix.force_fail }}"
+          echo "debug ref: ${{ matrix.debug }}"
+
       - name: Checkout wolfProvider
         uses: actions/checkout@v4
         with:

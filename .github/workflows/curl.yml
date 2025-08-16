@@ -13,30 +13,33 @@ concurrency:
 # END OF COMMON SECTION
 
 jobs:
+  build_matrix:
+    uses: ./.github/workflows/build-matrix.yml
+    with:
+      template_path: .github/matrix/curl-matrix.yml
+
   build_wolfprovider:
+    needs: build_matrix
     uses: ./.github/workflows/build-wolfprovider.yml
     with:
       wolfssl_ref: ${{ matrix.wolfssl_ref }}
       openssl_ref: ${{ matrix.openssl_ref }}
     strategy:
-      matrix:
-        wolfssl_ref: [ 'master', 'v5.8.0-stable' ]
-        openssl_ref: [ 'openssl-3.5.0' ]
+      matrix: ${{ fromJSON(needs.build_matrix.outputs.matrix) }}
 
   test_curl:
     runs-on: ubuntu-22.04
-    needs: build_wolfprovider
+    needs: 
+      - build_matrix
+      - build_wolfprovider
     # This should be a safe limit for the tests to run.
     timeout-minutes: 20
     strategy:
       matrix:
-        curl_ref: [ 'master', 'curl-8_4_0', 'curl-7_88_1' ]
-        wolfssl_ref: [ 'master', 'v5.8.0-stable' ]
-        openssl_ref: [ 'openssl-3.5.0' ]
-        force_fail: ['WOLFPROV_FORCE_FAIL=1', '']
+        <<: ${{ fromJSON(needs.build_matrix.outputs.matrix) }}
         exclude:
-          - curl_ref: 'master'
-            force_fail: 'WOLFPROV_FORCE_FAIL=1'
+          - curl_ref: "master"
+            force_fail: "WOLFPROV_FORCE_FAIL=1"
     steps:
       - name: Checkout wolfProvider
         uses: actions/checkout@v4
