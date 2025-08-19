@@ -201,12 +201,12 @@ enum wolfProv_LogComponents {
 
 /* Manually set the log level */
 #ifndef WOLFPROV_LOG_LEVEL_FILTER
-#define WOLFPROV_LOG_LEVEL_FILTER WP_LOG_LEVEL_ALL
+#define WOLFPROV_LOG_LEVEL_FILTER WP_LOG_LEVEL_DEFAULT
 #endif
 
 /* Manually set the components */
 #ifndef WOLFPROV_LOG_COMPONENTS_FILTER
-#define WOLFPROV_LOG_COMPONENTS_FILTER WP_LOG_COMPONENTS_ALL
+#define WOLFPROV_LOG_COMPONENTS_FILTER WP_LOG_COMPONENTS_DEFAULT
 #endif
 
 /* Conditional logging macro that checks compile-time configuration */
@@ -245,19 +245,15 @@ int wolfProv_SetLogComponents(int componentMask);
     WOLFPROV_ERROR_FUNC_LINE(type, funcName, ret, __FILE__, __LINE__)
 #define WOLFPROV_ERROR_FUNC_NULL(type, funcName, ret)                       \
     WOLFPROV_ERROR_FUNC_NULL_LINE(type, funcName, ret, __FILE__, __LINE__)
-
 void WOLFPROV_ENTER(int type, const char* msg);
 void WOLFPROV_ENTER_SILENT(int type, const char* msg);
-
 #define WOLFPROV_LEAVE(type, msg, ret) \
     WOLFPROV_LEAVE_EX(type, WOLFPROV_FUNC_NAME, msg, ret)
 void WOLFPROV_LEAVE_EX(int type, const char* func, const char* msg, int ret);
-
-#define WOLFPROV_LEAVE_SILENT(type, msg, matched, ret) \
-    WOLFPROV_LEAVE_SILENT_EX(type, WOLFPROV_FUNC_NAME, msg, matched, ret)
+#define WOLFPROV_LEAVE_SILENT(type, msg, ret) \
+    WOLFPROV_LEAVE_SILENT_EX(type, WOLFPROV_FUNC_NAME, msg, ret)
 void WOLFPROV_LEAVE_SILENT_EX(int type, const char* func, const char* msg,
-    int matched, int ret);
-
+    int ret);
 void WOLFPROV_MSG(int type, const char* fmt, ...);
 void WOLFPROV_MSG_VERBOSE(int type, const char* fmt, ...);
 void WOLFPROV_MSG_DEBUG(int type, const char* fmt, ...);
@@ -277,7 +273,7 @@ void WOLFPROV_BUFFER(int type, const unsigned char* buffer,
 #define WOLFPROV_ENTER(t, m)
 #define WOLFPROV_ENTER_SILENT(t, m)
 #define WOLFPROV_LEAVE(t, m, r)
-#define WOLFPROV_LEAVE_SILENT(t, f, m, r)
+#define WOLFPROV_LEAVE_SILENT(t, m, r)
 #define WOLFPROV_MSG(t, m, ...)
 #define WOLFPROV_MSG_VERBOSE(t, m, ...)
 #define WOLFPROV_MSG_DEBUG(t, m, ...)

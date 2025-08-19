@@ -116,10 +116,6 @@ for arg in "$@"; do
             ;;
         --leave-silent)
             WOLFPROV_LEAVE_SILENT=1
-            if [ -z "$WOLFPROV_DEBUG" ] || [ -z "$debug" ]; then
-                echo "Error: --leave-silent requires --debug to be set."
-                args_wrong+="$arg, "
-            fi
             ;;
         *)
             args_wrong+="$arg, "
@@ -131,6 +127,12 @@ if [ -n "$args_wrong" ]; then
     args_wrong="`echo $args_wrong | head -c -2 -`"
     echo "Unrecognized argument(s) provided: $args_wrong"
     echo "Use --help to see a list of arguments"
+    exit 1
+fi
+
+# Check if --leave-silent was used without debug mode
+if [ "${WOLFPROV_LEAVE_SILENT}" = "1" ] && [ -z "$WOLFPROV_DEBUG" ] && [ -z "$debug" ]; then
+    echo "Error: --leave-silent requires --debug to be set."
     exit 1
 fi
 
