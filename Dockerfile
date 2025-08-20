@@ -27,10 +27,12 @@ RUN apt-get update -y && apt-get install -y \
     gettext \
     gnupg \
     help2man \
+    iproute2 \
     libacl1-dev \
     libattr1-dev \
     libargon2-dev \
     libavahi-client-dev \
+    libavahi-compat-libdnssd-dev \
     libc6 \
     libc6-dev \
     libcap2 \
@@ -58,6 +60,7 @@ RUN apt-get update -y && apt-get install -y \
     libdevmapper-dev \
     libreadline-dev \
     libsystemd-dev \
+    libseccomp-dev \
     libfreeipmi-dev \
     libsasl2-dev \
     libtool \
@@ -80,12 +83,8 @@ RUN apt-get update -y && apt-get install -y \
     libmount-dev \
     libusb-1.0-0-dev \
     libuv1-dev \
-    libtss2-dev \
-    tpm2-abrmd \
-    swtpm \
-    tpm2-tools \
-    iproute2 \
     libidn2-dev \
+    libtss2-dev \
     libvncserver-dev \
     libx11-dev \
     libxdamage-dev \
@@ -113,6 +112,7 @@ RUN apt-get update -y && apt-get install -y \
     perl \
     pkgconf \
     pkg-config \
+    pps-tools \
     psmisc \
     python3 \
     python3-cmarkgfm \
@@ -122,12 +122,16 @@ RUN apt-get update -y && apt-get install -y \
     python3-impacket \
     python3-ldb \
     python3-pytest \
+    python-dev-is-python3 \
     scep \
     softhsm2 \
+    swtpm \
     ssh \
     sudo \
     systemd \
     tigervnc-viewer \
+    tpm2-abrmd \
+    tpm2-tools \
     uuid-dev \
     vim \
     wget \
