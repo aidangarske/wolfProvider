@@ -18,12 +18,10 @@ jobs:
     with:
       wolfssl_ref: ${{ matrix.wolfssl_ref }}
       openssl_ref: ${{ matrix.openssl_ref }}
-      replace_default: ${{ matrix.replace_default || false }}
     strategy:
       matrix:
         wolfssl_ref: [ 'master', 'v5.8.0-stable' ]
         openssl_ref: [ 'openssl-3.5.0' ]
-        replace_default: [ false, true ]
 
   test_pam_pkcs11:
     runs-on: ubuntu-22.04
@@ -39,14 +37,16 @@ jobs:
         pam_pkcs11_ref: [ 'master', 'pam_pkcs11-0.6.12' ]
         wolfssl_ref: [ 'master', 'v5.8.0-stable' ]
         openssl_ref: [ 'openssl-3.5.0' ]
-        replace_default: [ false, true ]
         force_fail: [ 'WOLFPROV_FORCE_FAIL=1', '' ]
         exclude:
           - pam_pkcs11_ref: 'master'
             force_fail: 'WOLFPROV_FORCE_FAIL=1'
-          - wolfssl_ref: 'master'
-            replace_default: true
     steps:
+      - name: Install sudo
+        run: |
+          apt-get update
+          apt-get install -y sudo
+
       # Checkout the source so we can run the check-workflow-result script
       - name: Checkout wolfProvider
         uses: actions/checkout@v4
@@ -64,16 +64,10 @@ jobs:
             openssl-install/include
             openssl-install/bin
 
-          key: wolfprov${{ matrix.replace_default && '-replace-default' }}-${{ matrix.wolfssl_ref }}-${{ matrix.openssl_ref }}-${{ github.sha }}
+          key: wolfprov-${{ matrix.wolfssl_ref }}-${{ matrix.openssl_ref }}-${{ github.sha }}
           fail-on-cache-miss: true
 
-      - name: Install PAM dependencies
-        run: |
-          apt-get update
-          apt-get install -y git
-
       - name: Run pam_pkcs11 tests
-        shell: bash
         run: |
           # Setup environment variables
           source $GITHUB_WORKSPACE/scripts/env-setup

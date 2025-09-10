@@ -18,12 +18,10 @@ jobs:
     with:
       wolfssl_ref: ${{ matrix.wolfssl_ref }}
       openssl_ref: ${{ matrix.openssl_ref }}
-      replace_default: ${{ matrix.replace_default || false }}
     strategy:
       matrix:
         wolfssl_ref: [ 'master', 'v5.8.0-stable' ]
         openssl_ref: [ 'openssl-3.5.0' ]
-        replace_default: [ false, true ]
 
   test_sscep:
     runs-on: ubuntu-22.04
@@ -38,11 +36,7 @@ jobs:
         sscep_ref: [ 'master', 'v0.10.0' ]
         wolfssl_ref: [ 'master', 'v5.8.0-stable' ]
         openssl_ref: [ 'openssl-3.5.0' ]
-        replace_default: [ false, true ]
         force_fail: [ 'WOLFPROV_FORCE_FAIL=1', '' ]
-        exclude:
-          - wolfssl_ref: 'master'
-            replace_default: true
 
     steps:
       - name: Install sudo
@@ -66,7 +60,7 @@ jobs:
             openssl-install/include
             openssl-install/bin
 
-          key: wolfprov${{ matrix.replace_default && '-replace-default' }}-${{ matrix.wolfssl_ref }}-${{ matrix.openssl_ref }}-${{ github.sha }}
+          key: wolfprov-${{ matrix.wolfssl_ref }}-${{ matrix.openssl_ref }}-${{ github.sha }}
           fail-on-cache-miss: true
 
       - name: Install sscep dependencies
@@ -98,7 +92,6 @@ jobs:
           sudo make install
 
       - name: Run sscep tests
-        shell: bash
         run: |
           source $GITHUB_WORKSPACE/scripts/env-setup
           export ${{ matrix.force_fail }}

@@ -18,12 +18,10 @@ jobs:
     with:
       wolfssl_ref: ${{ matrix.wolfssl_ref }}
       openssl_ref: ${{ matrix.openssl_ref }}
-      replace_default: ${{ matrix.replace_default || false }}
     strategy:
       matrix:
         wolfssl_ref: [ 'master', 'v5.8.0-stable' ]
         openssl_ref: [ 'openssl-3.5.0' ]
-        replace_default: [ false, true ]
 
   test_stunnel:
     runs-on: ubuntu-22.04
@@ -39,13 +37,10 @@ jobs:
         stunnel_ref: [ 'master', 'stunnel-5.67' ]
         wolfssl_ref: [ 'master', 'v5.8.0-stable' ]
         openssl_ref: [ 'openssl-3.5.0' ]
-        replace_default: [ false, true ]
         force_fail: ['WOLFPROV_FORCE_FAIL=1', '']
         exclude:
           - stunnel_ref: 'master'
             force_fail: 'WOLFPROV_FORCE_FAIL=1'
-          - wolfssl_ref: 'master'
-            replace_default: true
     steps:
       - name: Install sudo
         run: |
@@ -68,7 +63,7 @@ jobs:
             openssl-install/include
             openssl-install/bin
 
-          key: wolfprov${{ matrix.replace_default && '-replace-default' }}-${{ matrix.wolfssl_ref }}-${{ matrix.openssl_ref }}-${{ github.sha }}
+          key: wolfprov-${{ matrix.wolfssl_ref }}-${{ matrix.openssl_ref }}-${{ github.sha }}
           fail-on-cache-miss: true
 
       - name: Install dependencies
@@ -144,7 +139,6 @@ jobs:
 
       - name: Verify stunnel with wolfProvider
         working-directory: ./stunnel
-        shell: bash
         run: |
           # Unset LD_LIBRARY_PATH after python setup
           unset LD_LIBRARY_PATH

@@ -18,12 +18,10 @@ jobs:
     with:
       wolfssl_ref: ${{ matrix.wolfssl_ref }}
       openssl_ref: ${{ matrix.openssl_ref }}
-      replace_default: ${{ matrix.replace_default || false }}
     strategy:
       matrix:
         wolfssl_ref: ['v5.8.0-stable', 'master']
         openssl_ref: ['openssl-3.5.0']
-        replace_default: [ false, true ]
 
   test_systemd:
     runs-on: ubuntu-22.04
@@ -40,21 +38,21 @@ jobs:
         systemd_ref: ['v254']
         wolfssl_ref: ['v5.8.0-stable', 'master']
         openssl_ref: ['openssl-3.5.0']
-        replace_default: [ false, true ]
         force_fail: ['WOLFPROV_FORCE_FAIL=1', '']
-        exclude:
-          - wolfssl_ref: 'master'
-            replace_default: true
     steps:
+      - name: Install sudo
+        run: |
+          apt-get update
+          apt-get install -y sudo
+
       - name: Install dependencies
         run: |
           export DEBIAN_FRONTEND=noninteractive
-          apt-get update && \
-          apt-get install -y build-essential meson ninja-build \
+          sudo apt-get update
+          sudo apt-get install -y build-essential meson ninja-build \
             libmount-dev gperf python3-pytest libuv1-dev libnghttp2-dev \
             libcap-dev uuid-dev libdevmapper-dev libpopt-dev libjson-c-dev \
-            libargon2-dev libblkid-dev asciidoctor pkgconf zlib1g-dev \
-            python3-jinja2
+            libargon2-dev libblkid-dev asciidoctor pkgconf zlib1g-dev
 
       - name: Checkout wolfProvider
         uses: actions/checkout@v4
@@ -71,7 +69,7 @@ jobs:
             openssl-install/lib64
             openssl-install/include
             openssl-install/bin
-          key: wolfprov${{ matrix.replace_default && '-replace-default' }}-${{ matrix.wolfssl_ref }}-${{ matrix.openssl_ref }}-${{ github.sha }}
+          key: wolfprov-${{ matrix.wolfssl_ref }}-${{ matrix.openssl_ref }}-${{ github.sha }}
           fail-on-cache-miss: true
 
       - name: Checkout systemd
@@ -84,7 +82,6 @@ jobs:
 
       - name: Build systemd
         working-directory: systemd
-        shell: bash
         run: |
           source $GITHUB_WORKSPACE/scripts/env-setup
           meson setup -Dnobody-group=nogroup build
@@ -92,7 +89,6 @@ jobs:
 
       - name: Run systemd tests
         working-directory: systemd
-        shell: bash
         run: |
           set +e
           source $GITHUB_WORKSPACE/scripts/env-setup

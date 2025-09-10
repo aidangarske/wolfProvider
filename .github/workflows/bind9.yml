@@ -5,7 +5,7 @@ on:
   push:
     branches: [ 'master', 'main', 'release/**' ]
   pull_request:
-    branches: [ '*' ]
+    #branches: [ '*' ]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -63,8 +63,9 @@ jobs:
             openssl-install/lib64
             openssl-install/include
             openssl-install/bin
+            ${{ matrix.replace_default && 'libdefault-stub-install' || '' }}
 
-          key: wolfprov${{ matrix.replace_default && '-replace-default' }}-${{ matrix.wolfssl_ref }}-${{ matrix.openssl_ref }}-${{ github.sha }}
+          key: wolfprov${{ matrix.replace_default && '-replace-default' || '' }}-${{ matrix.wolfssl_ref }}-${{ matrix.openssl_ref }}-${{ github.sha }}
           fail-on-cache-miss: true
 
       - name: Install bind9 test dependencies
@@ -109,7 +110,6 @@ jobs:
           sudo ./bin/tests/system/ifconfig.sh up
 
           export ${{ matrix.force_fail }}
-          make -j$(nproc) check 2>&1 | tee bind9-test.log || true
+          make -j$(nproc) check 2>&1 | tee bind9-test.log
           TEST_RESULT=${PIPESTATUS[0]}
-          printf "Bind9 test result: $TEST_RESULT"
           $GITHUB_WORKSPACE/.github/scripts/check-workflow-result.sh $TEST_RESULT ${{ matrix.force_fail }} bind9

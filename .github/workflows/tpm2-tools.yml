@@ -18,12 +18,10 @@ jobs:
     with:
       wolfssl_ref: ${{ matrix.wolfssl_ref }}
       openssl_ref: ${{ matrix.openssl_ref }}
-      replace_default: ${{ matrix.replace_default || false }}
     strategy:
       matrix:
         wolfssl_ref: [ 'master', 'v5.8.0-stable' ]
         openssl_ref: [ 'openssl-3.5.0' ]
-        replace_default: [ false, true ]
 
   test_tpm2_tools:
     runs-on: ubuntu-22.04
@@ -40,11 +38,7 @@ jobs:
         tpm2_tools_ref: [ '5.7' ]
         wolfssl_ref: [ 'master', 'v5.8.0-stable' ]
         openssl_ref: [ 'openssl-3.5.0' ]
-        replace_default: [ false, true ]
         force_fail: [ 'WOLFPROV_FORCE_FAIL=1', '' ]
-        exclude:
-          - wolfssl_ref: 'master'
-            replace_default: true
     steps:
       - name: Install sudo
         run: |
@@ -67,7 +61,7 @@ jobs:
             openssl-install/include
             openssl-install/bin
 
-          key: wolfprov${{ matrix.replace_default && '-replace-default' }}-${{ matrix.wolfssl_ref }}-${{ matrix.openssl_ref }}-${{ github.sha }}
+          key: wolfprov-${{ matrix.wolfssl_ref }}-${{ matrix.openssl_ref }}-${{ github.sha }}
           fail-on-cache-miss: true
 
       - name: Install tpm2-tools test dependencies
@@ -99,7 +93,6 @@ jobs:
 
       - name: Run tpm2-tools tests
         working-directory: tpm2-tools
-        shell: bash
         run: |
           # Set up the environment for wolfProvider
           source $GITHUB_WORKSPACE/scripts/env-setup

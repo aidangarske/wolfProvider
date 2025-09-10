@@ -18,12 +18,10 @@ jobs:
     with:
       wolfssl_ref: ${{ matrix.wolfssl_ref }}
       openssl_ref: ${{ matrix.openssl_ref }}
-      replace_default: ${{ matrix.replace_default || false }}
     strategy:
       matrix:
         wolfssl_ref: [ 'master', 'v5.8.0-stable' ]
         openssl_ref: [ 'openssl-3.5.0' ]
-        replace_default: [ false, true ]
 
   test_iperf:
     runs-on: ubuntu-22.04
@@ -38,13 +36,14 @@ jobs:
       matrix:
         wolfssl_ref: [ 'master', 'v5.8.0-stable' ]
         openssl_ref: [ 'openssl-3.5.0' ]
-        replace_default: [ false, true ]
         iperf_ref: [ 'master', '3.12' ]
         force_fail: ['WOLFPROV_FORCE_FAIL=1', '']
-        exclude:
-          - wolfssl_ref: 'master'
-            replace_default: true
     steps:
+      - name: Install sudo
+        run: |
+          apt-get update
+          apt-get install -y sudo
+
       - name: Checkout wolfProvider
         uses: actions/checkout@v4
         with:
@@ -61,14 +60,14 @@ jobs:
             openssl-install/include
             openssl-install/bin
 
-          key: wolfprov${{ matrix.replace_default && '-replace-default' }}-${{ matrix.wolfssl_ref }}-${{ matrix.openssl_ref }}-${{ github.sha }}
+          key: wolfprov-${{ matrix.wolfssl_ref }}-${{ matrix.openssl_ref }}-${{ github.sha }}
           fail-on-cache-miss: true
 
       - name: Install dependencies
         run: |
           export DEBIAN_FRONTEND=noninteractive
-          apt-get update && \
-          apt-get install -y build-essential autoconf libtool pkg-config clang libc++-dev
+          sudo apt-get update
+          sudo apt-get install -y build-essential autoconf libtool pkg-config clang libc++-dev
 
       - name: Checkout iperf
         uses: actions/checkout@v4
@@ -87,7 +86,7 @@ jobs:
           export CPPFLAGS="-I${OPENSSL_INSTALL}/include"
 
           # Configure with OpenSSL
-          ./configure --with-openssl=$GITHUB_WORKSPACE/openssl-install/
+          ./configure --with-openssl=$GITHUB_WORKSPACE/openssl-install
 
           # Build iperf
           make -j

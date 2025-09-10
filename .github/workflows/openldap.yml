@@ -18,12 +18,10 @@ jobs:
     with:
       wolfssl_ref: ${{ matrix.wolfssl_ref }}
       openssl_ref: ${{ matrix.openssl_ref }}
-      replace_default: ${{ matrix.replace_default || false }}
     strategy:
       matrix:
         wolfssl_ref: [ 'master', 'v5.8.0-stable' ]
         openssl_ref: [ 'openssl-3.5.0' ]
-        replace_default: [ false, true ]
 
   test_openldap:
     runs-on: ubuntu-22.04
@@ -40,10 +38,6 @@ jobs:
         openldap_ref: [ 'master', 'OPENLDAP_REL_ENG_2_5_13', 'OPENLDAP_REL_ENG_2_6_7' ]
         wolfssl_ref: [ 'master', 'v5.8.0-stable' ]
         openssl_ref: [ 'openssl-3.5.0' ]
-        replace_default: [ false, true ]
-        exclude:
-          - wolfssl_ref: 'master'
-            replace_default: true
     steps:
       - name: Checkout wolfProvider
         uses: actions/checkout@v4
@@ -61,7 +55,7 @@ jobs:
             openssl-install/include
             openssl-install/bin
 
-          key: wolfprov${{ matrix.replace_default && '-replace-default' }}-${{ matrix.wolfssl_ref }}-${{ matrix.openssl_ref }}-${{ github.sha }}
+          key: wolfprov-${{ matrix.wolfssl_ref }}-${{ matrix.openssl_ref }}-${{ github.sha }}
           fail-on-cache-miss: true
 
       - name: Install dependencies
@@ -78,7 +72,6 @@ jobs:
 
       - name: Build and test OpenLDAP with wolfProvider
         working-directory: openldap
-        shell: bash
         run: |
           # Set up the environment for wolfProvider
           source $GITHUB_WORKSPACE/scripts/env-setup
