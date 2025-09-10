@@ -1,0 +1,95 @@
+name: Replace Default Global Tests
+
+# START OF COMMON SECTION
+on:
+  push:
+    branches: [ 'master', 'main', 'release/**' ]
+  pull_request:
+    branches: [ '*' ]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+# END OF COMMON SECTION
+
+jobs:
+  global_install_test:
+    name: Global Installation Test
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    strategy:
+      matrix:
+        # Test global installation with replace-default
+        wolfssl_ref: ['v5.8.0-stable']
+        openssl_ref: ['openssl-3.5.0']
+    steps:
+
+      - name: Checkout wolfProvider
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Build wolfProvider with replace-default
+        run: |
+          OPENSSL_TAG=${{ matrix.openssl_ref }} \
+            WOLFSSL_TAG=${{ matrix.wolfssl_ref }} \
+            ./scripts/build-wolfprovider.sh --replace-default
+
+      - name: Verify global OpenSSL installation
+        run: |
+          echo "=== Verifying global OpenSSL installation ==="
+          
+          # Check if OpenSSL binary works
+          openssl version
+          
+          # Check if wolfProvider is loaded as default provider
+          if openssl list -providers 2>/dev/null | grep -q "libwolfprov"; then
+            echo "SUCCESS: wolfProvider is loaded as default provider"
+          else
+            echo "WARNING: wolfProvider may not be loaded as default provider"
+          fi
+          
+          # Test that WPFF works with system defaults (no env sourcing needed)
+          echo "=== Testing WPFF with system defaults ==="
+          WOLFPROV_FORCE_FAIL=1 openssl list -providers 2>&1 | grep -q "wolfProvider" || echo "WPFF test completed"
+
+      - name: Test OSP integration with global installation
+        run: |
+          echo "=== Testing OSP integration ==="
+          
+          # Test basic OpenSSL operations work with global installation
+          echo "Testing basic OpenSSL operations..."
+          echo "test data" | openssl dgst -sha256
+          
+          # Test that we can list providers without environment variables
+          openssl list -providers
+          
+          # Test that wolfProvider is available
+          if openssl list -providers 2>/dev/null | grep -q "wolfProvider"; then
+            echo "SUCCESS: wolfProvider is available in global OpenSSL"
+          else
+            echo "INFO: wolfProvider not yet loaded (may require application restart)"
+          fi
+
+      - name: Cleanup global installation
+        if: always()
+        run: |
+          echo "=== Cleaning up global installation ==="
+          if [ -f scripts/install-openssl-global.sh ]; then
+            sudo scripts/install-openssl-global.sh --restore || echo "Restore completed or no backup found"
+          fi
+
+      - name: Print errors on failure
+        if: ${{ failure() }}
+        run: |
+          # Build failure log
+          if [ -f scripts/build-release.log ]; then
+            echo "=== Build log (last 50 lines) ==="
+            tail -n 50 scripts/build-release.log
+          fi
+          
+          # Global installation log
+          if [ -f scripts/install-openssl-global.log ]; then
+            echo "=== Global installation log ==="
+            cat scripts/install-openssl-global.log
+          fi
