@@ -7,12 +7,6 @@ on:
     branches: [ '*' ]
 
 jobs:
-  build_wolfprovider:
-    uses: ./.github/workflows/build-wolfprovider.yml
-    with:
-      wolfssl_ref: master
-      openssl_ref: openssl-3.5.0
-
   libwolfprov-standalone:
     runs-on: ubuntu-22.04
     # Important: use Debian Bookworm for compatibility
@@ -20,10 +14,6 @@ jobs:
       image: debian:bookworm   # or debian:bookworm-slim
       env:
         DEBIAN_FRONTEND: noninteractive
-    strategy:
-      matrix:
-        debug_flag: [ '', '--debug' ]
-    needs: build_wolfprovider
     steps:
     - name: Set up environment
       run: |
@@ -67,42 +57,34 @@ jobs:
         # List all tags
         git tag -l
 
-    - name: Download wolfSSL packages
-      uses: actions/download-artifact@v4
-      with:
-        name: wolfssl-debian-packages-${{ github.sha }}
-        path: /tmp/wolfssl-artifacts
-
-    - name: Download OpenSSL/wolfProvider packages
-      uses: actions/download-artifact@v4
-      with:
-        name: openssl-wolfprov-debian-packages-${{ github.sha }}
-        path: /tmp/openssl-wolfprov-artifacts
-
-    - name: Install wolfSSL debian packages from artifact
+    - name: Install wolfssl debian package
       run: |
-        set -e
-        echo "WolfSSL artifacts:"
-        ls -la /tmp/wolfssl-artifacts || true
+        mkdir -p "/tmp/wolfssl-pkg"
+        cd "/tmp/wolfssl-pkg"
+        
+        # Install wolfssl packages
+        chmod +x $GITHUB_WORKSPACE/debian/install-wolfssl.sh
+        $GITHUB_WORKSPACE/debian/install-wolfssl.sh \
+          $GITHUB_WORKSPACE/.github/packages/debian-wolfssl.tar.gz \
+          "/tmp/wolfssl-pkg"
 
-        # Install wolfSSL runtime and headers (from our artifact, not apt)
-        wolfssl_debs=$(ls -1 /tmp/wolfssl-artifacts/*.deb 2>/dev/null || true)
-        if [ -n "$wolfssl_debs" ]; then
-          echo "Installing wolfSSL packages: $wolfssl_debs"
-          apt install -y $wolfssl_debs
-        else
-          echo "ERROR: No wolfSSL .deb files found in artifact"
-          exit 1
-        fi
-
-        # Copy wolfSSL debs into the unified artifacts directory for later upload
+        # Create wolfprov-packages directory and move wolfssl files there
         mkdir -p "/tmp/wolfprov-packages"
-        cp -v /tmp/wolfssl-artifacts/*.deb /tmp/wolfprov-packages/ 2>/dev/null || true
+        echo "Moving wolfssl files to artifacts directory..."
+        
+        # Copy all wolfssl-related files (source and binary packages)
+        find /tmp/wolfssl-pkg -name "*wolfssl*" -type f -name "*.deb" -exec cp {} /tmp/wolfprov-packages/ \;
+        find /tmp/wolfssl-pkg -name "*wolfssl*" -type f -name "*.dsc" -exec cp {} /tmp/wolfprov-packages/ \;
+        find /tmp/wolfssl-pkg -name "*wolfssl*" -type f -name "*.tar.gz" -exec cp {} /tmp/wolfprov-packages/ \;
+        find /tmp/wolfssl-pkg -name "*wolfssl*" -type f -name "*.orig.tar.gz" -exec cp {} /tmp/wolfprov-packages/ \;
+        
+        echo "WolfSSL files in artifacts directory:"
+        ls -la /tmp/wolfprov-packages/*wolfssl* || true
 
     - name: Build Debian package
       run: |
         # Bypass the warning prompt with 'yes Y' 
-        yes Y | ./scripts/build-wolfprovider.sh --debian ${{ matrix.debug_flag }}
+        yes Y | ./scripts/build-wolfprovider.sh --debian $FIPS_FLAG
 
         # List generated packages
         echo "Generated Packages:"
@@ -220,12 +202,12 @@ jobs:
       if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: wolfprovider-debian-packages-${{ github.sha }}${{ matrix.debug_flag }}
+        name: wolfprovider-debian-packages
         path: |
           /tmp/wolfprov-packages/*.deb
           /tmp/wolfprov-packages/*.dsc
           /tmp/wolfprov-packages/*.tar.gz
-        retention-days: 2
+        retention-days: 7
 
   libwolfprov-with-openssl:
     runs-on: ubuntu-22.04
@@ -238,7 +220,7 @@ jobs:
     - name: Download artifacts from previous job
       uses: actions/download-artifact@v4
       with:
-        name: debian-package-test-artifacts-${{ github.sha }}
+        name: wolfprovider-debian-packages
         path: /tmp/artifacts
   
     - name: Set up environment

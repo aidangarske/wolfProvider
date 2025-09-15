@@ -20,9 +20,6 @@ set -euo pipefail
 
 PKG_NAME="libwolfprov"
 
-WOLFSSL_ISFIPS=${WOLFSSL_ISFIPS:-0}
-WOLFPROV_DEBUG=${WOLFPROV_DEBUG:-0}
-
 # Step 1: Determine the repo root
 REPO_ROOT=$(git rev-parse --show-toplevel)
 cd "$REPO_ROOT"
@@ -113,7 +110,7 @@ git archive --format=tar.gz --prefix="${TARBALL_PREFIX}/" \
 
 # Step 10: Build package
 echo "⚙️  Building package..."
-# Use nostrip to avoid building the -dbgsym package
-DEB_BUILD_OPTIONS="nostrip" debuild -e WOLFSSL_ISFIPS -e WOLFPROV_DEBUG -us -uc
+WOLFSSL_ISFIPS=${WOLFSSL_ISFIPS:-0}
+debuild -e WOLFSSL_ISFIPS -us -uc
 
 echo "✅ Build completed for version $VERSION"
