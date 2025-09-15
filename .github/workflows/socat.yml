@@ -81,9 +81,10 @@ jobs:
 
       - name: Run socat tests
         working-directory: ./socat-1.8.0.0
+        shell: bash
         env:
           SHELL: /bin/bash
-          PATH: "/sbin:$PATH"
+          PATH: /sbin:/usr/sbin:/usr/bin:/bin
         run: |
           # Create missing device file for vsock tests
           mkdir -p /dev
