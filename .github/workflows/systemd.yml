@@ -43,8 +43,9 @@ jobs:
     steps:
       - name: Install dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y build-essential meson ninja-build \
+          export DEBIAN_FRONTEND=noninteractive
+          apt-get update
+          apt-get install -y build-essential meson ninja-build \
             libmount-dev gperf python3-pytest libuv1-dev libnghttp2-dev \
             libcap-dev uuid-dev libdevmapper-dev libpopt-dev libjson-c-dev \
             libargon2-dev libblkid-dev asciidoctor pkgconf zlib1g-dev

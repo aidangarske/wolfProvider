@@ -44,7 +44,7 @@ jobs:
         run: |
           apt-get update
           apt-get install -y git sudo build-essential autoconf automake \
-            libtool pkg-config libjansson-dev check ca-certificates dpkg-dev
+            libtool pkg-config libjansson-dev check ca-certificates dpkg-dev groff
 
       - name: Checkout wolfProvider
         uses: actions/checkout@v4

@@ -43,9 +43,14 @@ jobs:
     steps:
       - name: Set up environment
         run: |
+          export DEBIAN_FRONTEND=noninteractive
           apt-get update
           apt-get install -y git sudo build-essential autoconf automake \
-            libtool pkg-config libjansson-dev check ca-certificates dpkg-dev
+            libtool pkg-config libjansson-dev check ca-certificates dpkg-dev \
+            liblzo2-dev libpam0g-dev liblz4-dev libcap-ng-dev \
+            linux-libc-dev man2html libcmocka-dev python3-docutils \
+            iproute2 libtool automake autoconf libnl-genl-3-dev \
+            libnl-genl-3-200
 
       - name: Checkout wolfProvider
         uses: actions/checkout@v4
@@ -67,15 +72,6 @@ jobs:
       - name: Install wolfSSL/OpenSSL/wolfprov packages
         run: |
           $GITHUB_WORKSPACE/.github/scripts/install-packages.sh
-
-      - name: Install test dependencies
-        run: |
-          export DEBIAN_FRONTEND=noninteractive
-          sudo apt-get update
-          sudo apt-get install liblzo2-dev libpam0g-dev liblz4-dev libcap-ng-dev \
-                     linux-libc-dev man2html libcmocka-dev python3-docutils \
-                     iproute2 libtool automake autoconf libnl-genl-3-dev \
-                     libnl-genl-3-200
 
       - name: Find ossl headers
         run: |
