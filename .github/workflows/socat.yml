@@ -44,7 +44,7 @@ jobs:
           apt-get update
           apt-get install -y git sudo build-essential autoconf automake \
             libtool pkg-config libjansson-dev check ca-certificates dpkg-dev \
-            clang libc++-dev curl
+            clang libc++-dev curl net-tools netcat-openbsd procps
 
       - name: Checkout wolfProvider
         uses: actions/checkout@v4
@@ -81,7 +81,14 @@ jobs:
 
       - name: Run socat tests
         working-directory: ./socat-1.8.0.0
+        env:
+          SHELL: /bin/bash
+          PATH: "/sbin:$PATH"
         run: |
+          # Create missing device file for vsock tests
+          mkdir -p /dev
+          touch /dev/vsock
+          
           # wolfProvider is already loaded as the default provider
           echo "Current OpenSSL providers:"
           openssl list -providers

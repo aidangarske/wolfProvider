@@ -45,9 +45,12 @@ jobs:
     steps:
       - name: Set up environment
         run: |
+          export DEBIAN_FRONTEND=noninteractive
           apt-get update
           apt-get install -y git sudo build-essential autoconf automake \
-            libtool pkg-config libjansson-dev check ca-certificates dpkg-dev procps
+            libtool pkg-config libjansson-dev check ca-certificates dpkg-dev \
+            procps asciidoctor gettext autopoint uuid-dev libdevmapper-dev \
+            libpopt-dev libjson-c-dev libblkid-dev libargon2-dev
 
       - name: Checkout wolfProvider
         uses: actions/checkout@v4
@@ -69,15 +72,6 @@ jobs:
       - name: Install wolfSSL/OpenSSL/wolfprov packages
         run: |
           $GITHUB_WORKSPACE/.github/scripts/install-packages.sh
-
-      - name: Install dependencies
-        run: |
-          export DEBIAN_FRONTEND=noninteractive
-          sudo apt-get update
-          sudo apt-get install -y \
-            build-essential autoconf asciidoctor gettext autopoint libtool \
-            pkg-config uuid-dev libdevmapper-dev libpopt-dev libjson-c-dev \
-            libblkid-dev libargon2-dev
 
       - name: Checkout cryptsetup
         uses: actions/checkout@v4

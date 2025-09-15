@@ -125,5 +125,6 @@ jobs:
 
           # Run the tests and capture the result
           make check 2>&1 | tee libssh2-test.log
+          cat tests/test-suite.log
           TEST_RESULT=$(grep -q "FAIL: ssh2.sh" libssh2-test.log && echo "1" || echo "0")
           $GITHUB_WORKSPACE/.github/scripts/check-workflow-result.sh $TEST_RESULT ${{ matrix.force_fail }} libssh2

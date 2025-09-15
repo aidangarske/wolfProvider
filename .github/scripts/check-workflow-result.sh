@@ -103,7 +103,7 @@ if [ "$WOLFPROV_FORCE_FAIL" = "WOLFPROV_FORCE_FAIL=1" ]; then
             ACTUAL_FAILS=$(grep -a '^FAIL: ' openvpn-test.log | sed 's/^FAIL: //' | sort)
 
             # Define expected failures
-            EXPECTED_FAILS="auth_token_testdriver crypto_testdriver pkt_testdriver tls_crypt_testdriver"
+            EXPECTED_FAILS="auth_token_testdriver crypto_testdriver pkt_testdriver tls_crypt_testdriver provider_testdriver"
             
             # Create temporary files for sorted lists
             TEMP_DIR=$(mktemp -d)
