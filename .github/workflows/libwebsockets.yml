@@ -20,7 +20,8 @@ jobs:
       openssl_ref: ${{ matrix.openssl_ref }}
     strategy:
       matrix:
-        wolfssl_ref: [ 'master', 'v5.8.0-stable' ]
+        # Test 5.8.2 since our .deb is based on that version
+        wolfssl_ref: [ 'v5.8.2-stable' ]
         openssl_ref: [ 'openssl-3.5.0' ]
 
   test_libwebsockets:
@@ -28,39 +29,52 @@ jobs:
     needs: build_wolfprovider
     # This should be a safe limit for the tests to run.
     timeout-minutes: 20
+    container:
+      image: debian:bookworm
+      env:
+        DEBIAN_FRONTEND: noninteractive
     strategy:
       matrix:
-        libwebsockets_ref: [ 'main', 'v4.3.3' ]
-        wolfssl_ref: [ 'master', 'v5.8.0-stable' ]
+        # Dont test master since it might be too unstable
+        libwebsockets_ref: [ 'v4.3.3' ]
+        wolfssl_ref: [ 'v5.8.2-stable' ]
         openssl_ref: [ 'openssl-3.5.0' ]
         force_fail: [ 'WOLFPROV_FORCE_FAIL=1', '' ]
-        exclude:
-          - libwebsockets_ref: 'main'
-            force_fail: 'WOLFPROV_FORCE_FAIL=1'
     steps:
-      # Checkout the source so we can run the check-workflow-result script
+      - name: Set up environment
+        run: |
+          apt-get update
+          apt-get install -y git sudo build-essential autoconf automake \
+            libtool pkg-config libjansson-dev check ca-certificates dpkg-dev
+
       - name: Checkout wolfProvider
         uses: actions/checkout@v4
         with:
           fetch-depth: 1
 
-      - name: Retrieving wolfProvider from cache
-        uses: actions/cache/restore@v4
-        id: wolfprov-cache-restore
+      - name: Download wolfSSL packages
+        uses: actions/download-artifact@v4
         with:
-          path: |
-            wolfssl-install
-            wolfprov-install
-            openssl-install/lib64
-            openssl-install/include
-            openssl-install/bin
-          key: wolfprov-${{ matrix.wolfssl_ref }}-${{ matrix.openssl_ref }}-${{ github.sha }}
-          fail-on-cache-miss: true
+          name: wolfssl-debian-packages-${{ github.sha }}
+          path: /tmp/wolfssl-artifacts
+
+      - name: Download OpenSSL/wolfProvider packages
+        uses: actions/download-artifact@v4
+        with:
+          name: openssl-wolfprov-debian-packages-${{ github.sha }}
+          path: /tmp/openssl-wolfprov-artifacts
+
+      - name: Install wolfSSL/OpenSSL/wolfprov packages
+        run: |
+          $GITHUB_WORKSPACE/.github/scripts/install-packages.sh
 
       - name: Install libwebsockets dependencies
         run: |
+          export DEBIAN_FRONTEND=noninteractive
           sudo apt-get update
-          sudo apt-get install -y libc6 libcap2 zlib1g cmake build-essential
+          sudo apt-get install -y libc6 libcap2 zlib1g cmake build-essential \
+            openssl ca-certificates
+
       - name: Download libwebsockets
         uses: actions/checkout@v4
         with:
@@ -80,9 +94,15 @@ jobs:
       - name: Run libwebsockets tests
         working-directory: libwebsockets
         run: |
-          echo "Setting environment variables..."
-          source $GITHUB_WORKSPACE/scripts/env-setup
+          # wolfProvider is already loaded as the default provider
+          echo "Current OpenSSL providers:"
+          openssl list -providers
+          openssl list -providers | grep -q "wolfSSL Provider" || (echo "ERROR: libwolfprov not found in OpenSSL providers" && exit 1)
           export ${{ matrix.force_fail }}
+          if [ -n "${{ matrix.force_fail }}" ]; then
+            set +e
+          fi
+
           ./build/bin/libwebsockets-test-server --port=11111 --ssl > server.log 2>&1 & SERVER_PID=$!
           sleep 5
           timeout 10 ./build/bin/libwebsockets-test-client 127.0.0.1 --port=11111 --ssl > client.log 2>&1 || echo "Client exited with error $?"

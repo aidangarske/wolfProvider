@@ -4,8 +4,8 @@ name: gRPC Tests
 on:
   push:
     branches: [ 'master', 'main', 'release/**' ]
-  pull_request:
-    branches: [ '*' ]
+  #pull_request:
+    #branches: [ '*' ]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -20,7 +20,8 @@ jobs:
       openssl_ref: ${{ matrix.openssl_ref }}
     strategy:
       matrix:
-        wolfssl_ref: [ 'master', 'v5.8.0-stable' ]
+        # Test 5.8.2 since our .deb is based on that version
+        wolfssl_ref: [ 'v5.8.2-stable' ]
         openssl_ref: [ 'openssl-3.5.0' ]
 
   test_grpc:
@@ -28,38 +29,52 @@ jobs:
     needs: build_wolfprovider
     # This should be a safe limit for the tests to run.
     timeout-minutes: 30
+    container:
+      image: debian:bookworm
+      env:
+        DEBIAN_FRONTEND: noninteractive
     strategy:
       fail-fast: false
       matrix:
+        # Dont test master since it might be too unstable
         include:
-          - grpc_ref: v1.60.0 # TODO: Add master
+          - grpc_ref: v1.60.0
             tests: >-
               bad_ssl_alpn_test bad_ssl_cert_test client_ssl_test
               crl_ssl_transport_security_test server_ssl_test
               ssl_transport_security_test ssl_transport_security_utils_test
               test_core_security_ssl_credentials_test test_cpp_end2end_ssl_credentials_test
               h2_ssl_cert_test h2_ssl_session_reuse_test
-        wolfssl_ref: [ 'master', 'v5.8.0-stable' ]
+        wolfssl_ref: [ 'v5.8.2-stable' ]
         openssl_ref: [ 'openssl-3.5.0' ]
     steps:
+      - name: Set up environment
+        run: |
+          apt-get update
+          apt-get install -y git sudo build-essential autoconf automake \
+            libtool pkg-config libjansson-dev check ca-certificates dpkg-dev \
+            iproute2 net-tools iputils-ping
+
       - name: Checkout wolfProvider
         uses: actions/checkout@v4
         with:
           fetch-depth: 1
 
-      - name: Retrieving wolfSSL/wolfProvider from cache
-        uses: actions/cache/restore@v4
-        id: wolfprov-cache
+      - name: Download wolfSSL packages
+        uses: actions/download-artifact@v4
         with:
-          path: |
-            wolfssl-install
-            wolfprov-install
-            openssl-install/lib64
-            openssl-install/include
-            openssl-install/bin
+          name: wolfssl-debian-packages-${{ github.sha }}
+          path: /tmp/wolfssl-artifacts
 
-          key: wolfprov-${{ matrix.wolfssl_ref }}-${{ matrix.openssl_ref }}-${{ github.sha }}
-          fail-on-cache-miss: true
+      - name: Download OpenSSL/wolfProvider packages
+        uses: actions/download-artifact@v4
+        with:
+          name: openssl-wolfprov-debian-packages-${{ github.sha }}
+          path: /tmp/openssl-wolfprov-artifacts
+
+      - name: Install wolfSSL/OpenSSL/wolfprov packages
+        run: |
+          $GITHUB_WORKSPACE/.github/scripts/install-packages.sh
 
       - name: Confirm IPv4 and IPv6 support
         run: |
@@ -68,8 +83,9 @@ jobs:
 
       - name: Install prerequisites
         run: |
-          sudo apt-get update
-          sudo apt-get install -y build-essential autoconf libtool pkg-config clang libc++-dev
+          export DEBIAN_FRONTEND=noninteractive
+          apt-get update
+          apt-get install -y clang libc++-dev python3-six python3-pip
 
       - name: Setup cmake version
         uses: jwlawson/actions-setup-cmake@v2
@@ -86,8 +102,10 @@ jobs:
       - name: Build grpc with wolfProvider
         working-directory: ./grpc
         run: |
-          # Set up the environment for wolfProvider
-          source $GITHUB_WORKSPACE/scripts/env-setup
+          # wolfProvider is already loaded as the default provider
+          echo "Current OpenSSL providers:"
+          openssl list -providers
+          openssl list -providers | grep -q "wolfSSL Provider" || (echo "ERROR: libwolfprov not found in OpenSSL providers" && exit 1)
 
           # Initialize submodules
           git submodule update --init
@@ -97,14 +115,14 @@ jobs:
           cd cmake/build
 
           # Configure with OpenSSL and wolfProvider
-          cmake -DgRPC_BUILD_TESTS=ON -DgRPC_SSL_PROVIDER=package \
-            -DOPENSSL_ROOT_DIR=$GITHUB_WORKSPACE/openssl-install ../..
+          cmake -DgRPC_BUILD_TESTS=ON -DgRPC_SSL_PROVIDER=package ../..
 
           # Build the tests
           make -j $(nproc) ${{ matrix.tests }}
 
       - name: Run grpc tests with wolfProvider
         working-directory: ./grpc
+        shell: bash
         run: |
           # Start the port server
           ./tools/run_tests/start_port_server.py

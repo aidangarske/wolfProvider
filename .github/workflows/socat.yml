@@ -20,42 +20,52 @@ jobs:
       openssl_ref: ${{ matrix.openssl_ref }}
     strategy:
       matrix:
-        wolfssl_ref: [ 'master', 'v5.8.0-stable' ]
+        # Test 5.8.2 since our .deb is based on that version
+        wolfssl_ref: [ 'v5.8.2-stable' ]
         openssl_ref: [ 'openssl-3.5.0' ]
 
   test_socat:
     runs-on: ubuntu-22.04
     needs: build_wolfprovider
+    container:
+      image: debian:bookworm
+      env:
+        DEBIAN_FRONTEND: noninteractive
     # This should be a safe limit for the tests to run.
     timeout-minutes: 20
     strategy:
       matrix:
-        wolfssl_ref: [ 'master', 'v5.8.0-stable' ]
+        # Test 5.8.2 since our .deb is based on that version
+        wolfssl_ref: [ 'v5.8.2-stable' ]
         openssl_ref: [ 'openssl-3.5.0' ]
     steps:
+      - name: Set up environment
+        run: |
+          apt-get update
+          apt-get install -y git sudo build-essential autoconf automake \
+            libtool pkg-config libjansson-dev check ca-certificates dpkg-dev \
+            clang libc++-dev
+
       - name: Checkout wolfProvider
         uses: actions/checkout@v4
         with:
           fetch-depth: 1
 
-      - name: Retrieving wolfSSL/wolfProvider from cache
-        uses: actions/cache/restore@v4
-        id: wolfprov-cache
+      - name: Download wolfSSL packages
+        uses: actions/download-artifact@v4
         with:
-          path: |
-            wolfssl-install
-            wolfprov-install
-            openssl-install/lib64
-            openssl-install/include
-            openssl-install/bin
+          name: wolfssl-debian-packages-${{ github.sha }}
+          path: /tmp/wolfssl-artifacts
 
-          key: wolfprov-${{ matrix.wolfssl_ref }}-${{ matrix.openssl_ref }}-${{ github.sha }}
-          fail-on-cache-miss: true
+      - name: Download OpenSSL/wolfProvider packages
+        uses: actions/download-artifact@v4
+        with:
+          name: openssl-wolfprov-debian-packages-${{ github.sha }}
+          path: /tmp/openssl-wolfprov-artifacts
 
-      - name: Install dependencies
+      - name: Install wolfSSL/OpenSSL/wolfprov packages
         run: |
-          sudo apt-get update
-          sudo apt-get install build-essential autoconf libtool pkg-config clang libc++-dev
+          $GITHUB_WORKSPACE/.github/scripts/install-packages.sh
 
       - name: Download socat
         run: curl -O http://www.dest-unreach.org/socat/download/socat-1.8.0.0.tar.gz && tar xvf socat-1.8.0.0.tar.gz
@@ -64,7 +74,7 @@ jobs:
         working-directory: ./socat-1.8.0.0
         run: |
           # Configure with OpenSSL
-          ./configure --enable-openssl-base=$GITHUB_WORKSPACE/openssl-install
+          ./configure
 
           # Build socat
           make
@@ -72,11 +82,10 @@ jobs:
       - name: Run socat tests
         working-directory: ./socat-1.8.0.0
         run: |
-          # Set up the environment for wolfProvider
-          source $GITHUB_WORKSPACE/scripts/env-setup
-
-          # Verify OpenSSL loads wolfProvider
-          $GITHUB_WORKSPACE/openssl-install/bin/openssl list -providers
+          # wolfProvider is already loaded as the default provider
+          echo "Current OpenSSL providers:"
+          openssl list -providers
+          openssl list -providers | grep -q "wolfSSL Provider" || (echo "ERROR: libwolfprov not found in OpenSSL providers" && exit 1)
 
           # Show socat version (includes OpenSSL version info)
           ./socat -V

@@ -20,7 +20,8 @@ jobs:
       openssl_ref: ${{ matrix.openssl_ref }}
     strategy:
       matrix:
-        wolfssl_ref: [ 'master', 'v5.8.0-stable' ]
+        # Test 5.8.2 since our .deb is based on that version
+        wolfssl_ref: [ 'v5.8.2-stable' ]
         openssl_ref: [ 'openssl-3.5.0' ]
 
   test_curl:
@@ -28,39 +29,50 @@ jobs:
     needs: build_wolfprovider
     # This should be a safe limit for the tests to run.
     timeout-minutes: 20
+    container:
+      image: debian:bookworm
+      env:
+        DEBIAN_FRONTEND: noninteractive
     strategy:
       matrix:
-        curl_ref: [ 'master', 'curl-8_4_0', 'curl-7_88_1' ]
-        wolfssl_ref: [ 'master', 'v5.8.0-stable' ]
+        # Dont test master since it might be too unstable
+        curl_ref: [ 'curl-8_4_0', 'curl-7_88_1' ]
+        wolfssl_ref: [ 'v5.8.2-stable' ]
         openssl_ref: [ 'openssl-3.5.0' ]
         force_fail: ['WOLFPROV_FORCE_FAIL=1', '']
-        exclude:
-          - curl_ref: 'master'
-            force_fail: 'WOLFPROV_FORCE_FAIL=1'
     steps:
+      - name: Set up environment
+        run: |
+          apt-get update
+          apt-get install -y git sudo build-essential autoconf automake \
+            libtool pkg-config libjansson-dev check ca-certificates dpkg-dev
+
       - name: Checkout wolfProvider
         uses: actions/checkout@v4
         with:
           fetch-depth: 1
 
-      - name: Retrieving wolfSSL/wolfProvider from cache
-        uses: actions/cache/restore@v4
-        id: wolfprov-cache
+      - name: Download wolfSSL packages
+        uses: actions/download-artifact@v4
         with:
-          path: |
-            wolfssl-install
-            wolfprov-install
-            openssl-install/lib64
-            openssl-install/include
-            openssl-install/bin
+          name: wolfssl-debian-packages-${{ github.sha }}
+          path: /tmp/wolfssl-artifacts
 
-          key: wolfprov-${{ matrix.wolfssl_ref }}-${{ matrix.openssl_ref }}-${{ github.sha }}
-          fail-on-cache-miss: true
+      - name: Download OpenSSL/wolfProvider packages
+        uses: actions/download-artifact@v4
+        with:
+          name: openssl-wolfprov-debian-packages-${{ github.sha }}
+          path: /tmp/openssl-wolfprov-artifacts
+
+      - name: Install wolfSSL/OpenSSL/wolfprov packages
+        run: |
+          $GITHUB_WORKSPACE/.github/scripts/install-packages.sh
 
       - name: Install dependencies
         run: |
+          export DEBIAN_FRONTEND=noninteractive
           sudo apt-get update
-          sudo apt-get install nghttp2 libpsl5 libpsl-dev python3-impacket
+          sudo apt-get install -y nghttp2 libpsl5 libpsl-dev python3-impacket
 
       - name: Build curl
         uses: wolfSSL/actions-build-autotools-project@v1
@@ -71,24 +83,22 @@ jobs:
           configure: --with-openssl
           check: false
 
-      - name: Generate certificates for curl master force-fail tests
-        run: |
-          if [ "${{ matrix.force_fail }}" = "WOLFPROV_FORCE_FAIL=1" ] &&
-             [ "${{ matrix.curl_ref }}" = "master" ]; then
-            cd curl/tests/certs
-            make test-ca.cacert
-            cd ../..
-          fi
       - name: Test curl with wolfProvider
         working-directory: curl
+        shell: bash
         run: |
-          # Set up the environment for wolfProvider
-          source $GITHUB_WORKSPACE/scripts/env-setup
+          # wolfProvider is already loaded as the default provider
+          echo "Current OpenSSL providers:"
+          openssl list -providers
+          openssl list -providers | grep -q "wolfSSL Provider" || (echo "ERROR: libwolfprov not found in OpenSSL providers" && exit 1)
+
           export ${{ matrix.force_fail }}
           export CURL_REF=${{ matrix.curl_ref }}
-
+          export USER=root
+          if [ "${{ matrix.force_fail }}" = "WOLFPROV_FORCE_FAIL=1" ]; then
+            set +e
+          fi
           # Run tests and save output to test.log
           make -j$(nproc) test-ci 2>&1 | tee curl-test.log
-          # Capture the test result using PIPESTATUS (Bash only)
           TEST_RESULT=${PIPESTATUS[0]}
           $GITHUB_WORKSPACE/.github/scripts/check-workflow-result.sh $TEST_RESULT ${{ matrix.force_fail }} curl
