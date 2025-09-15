@@ -44,7 +44,7 @@ jobs:
           apt-get update
           apt-get install -y git sudo build-essential autoconf automake \
             libtool pkg-config libjansson-dev check ca-certificates dpkg-dev \
-            clang libc++-dev
+            clang libc++-dev curl
 
       - name: Checkout wolfProvider
         uses: actions/checkout@v4
