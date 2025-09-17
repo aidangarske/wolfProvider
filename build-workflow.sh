@@ -98,16 +98,8 @@ fi
 sudo dpkg -i "$wolfprov_main" || sudo apt install -f -y
 
 # Fix wolfProvider configuration to work with system OpenSSL
-echo "Fixing wolfProvider configuration..."
-# Modify the main openssl.cnf to include wolfProvider in the existing provider_sect
-sed -i '/\[provider_sect\]/a libwolfprov = libwolfprov_sect' /usr/lib/ssl/openssl.cnf
-
-# Create the wolfProvider configuration section
-cat >> /usr/lib/ssl/openssl.cnf << 'EOF'
-
-[libwolfprov_sect]
-activate = 1
-EOF
+echo "Setting up wolfProvider configuration..."
+export OPENSSL_CONF=/workspace/provider.conf
 
 echo "=== Verifying wolfProvider is loaded ==="
 openssl list -providers
