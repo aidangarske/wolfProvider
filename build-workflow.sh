@@ -68,19 +68,25 @@ libssl3_debs=$(ls -1 /tmp/wolfprov-packages/libssl3_[0-9]*.deb 2>/dev/null || tr
 openssl_debs=$(ls -1 /tmp/wolfprov-packages/openssl_[0-9]*.deb 2>/dev/null || true)
 libssl_dev_debs=$(ls -1 /tmp/wolfprov-packages/libssl-dev_[0-9]*.deb 2>/dev/null || true)
 
-# Install custom OpenSSL packages with --force-overwrite to handle conflicts
-echo "Installing custom OpenSSL packages with conflict resolution..."
+# Completely remove conflicting packages and their dependencies
+echo "Completely removing conflicting OpenSSL packages..."
+sudo apt remove --purge -y libssl3t64 libssl3 openssl libssl-dev || true
+sudo apt autoremove --purge -y || true
+sudo apt autoclean || true
+
+# Install custom OpenSSL packages
+echo "Installing custom OpenSSL packages..."
 if [ -n "$libssl3_debs" ]; then
   echo "Installing custom libssl3 package..."
-  sudo dpkg -i --force-overwrite $libssl3_debs || sudo apt install -f -y
+  sudo dpkg -i $libssl3_debs || sudo apt install -f -y
 fi
 if [ -n "$openssl_debs" ]; then
   echo "Installing custom openssl package..."
-  sudo dpkg -i --force-overwrite $openssl_debs || sudo apt install -f -y
+  sudo dpkg -i $openssl_debs || sudo apt install -f -y
 fi
 if [ -n "$libssl_dev_debs" ]; then
   echo "Installing custom libssl-dev package..."
-  sudo dpkg -i --force-overwrite $libssl_dev_debs || sudo apt install -f -y
+  sudo dpkg -i $libssl_dev_debs || sudo apt install -f -y
 fi
 
 # Install wolfProvider main package
