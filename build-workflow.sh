@@ -63,19 +63,27 @@ if [ -n "$wolfssl_debs" ]; then
   sudo apt install -y $wolfssl_debs
 fi
 
-# Install OpenSSL packages in dependency order
+# Install OpenSSL packages in dependency order with conflict resolution
 libssl3_debs=$(ls -1 /tmp/wolfprov-packages/libssl3_[0-9]*.deb 2>/dev/null || true)
 openssl_debs=$(ls -1 /tmp/wolfprov-packages/openssl_[0-9]*.deb 2>/dev/null || true)
 libssl_dev_debs=$(ls -1 /tmp/wolfprov-packages/libssl-dev_[0-9]*.deb 2>/dev/null || true)
 
+# Force remove conflicting packages and install custom ones
+echo "Force removing conflicting OpenSSL packages..."
+sudo dpkg --remove --force-remove-reinstreq libssl3t64 libssl3 || true
+sudo apt autoremove -y || true
+
 if [ -n "$libssl3_debs" ]; then
-  sudo apt install -y $libssl3_debs
+  echo "Installing custom libssl3 package..."
+  sudo dpkg -i $libssl3_debs || sudo apt install -f -y
 fi
 if [ -n "$openssl_debs" ]; then
-  sudo apt install -y $openssl_debs
+  echo "Installing custom openssl package..."
+  sudo dpkg -i $openssl_debs || sudo apt install -f -y
 fi
 if [ -n "$libssl_dev_debs" ]; then
-  sudo apt install -y $libssl_dev_debs
+  echo "Installing custom libssl-dev package..."
+  sudo dpkg -i $libssl_dev_debs || sudo apt install -f -y
 fi
 
 # Install wolfProvider main package
@@ -84,6 +92,6 @@ if [ -z "$wolfprov_main" ]; then
   echo "ERROR: libwolfprov main package not found"
   exit 1
 fi
-sudo apt install -y "$wolfprov_main"
+sudo dpkg -i "$wolfprov_main" || sudo apt install -f -y
 
 git stash pop
