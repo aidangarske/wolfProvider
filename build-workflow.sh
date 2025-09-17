@@ -97,4 +97,22 @@ if [ -z "$wolfprov_main" ]; then
 fi
 sudo dpkg -i "$wolfprov_main" || sudo apt install -f -y
 
+# Fix wolfProvider configuration to work with system OpenSSL
+echo "Fixing wolfProvider configuration..."
+cat > /usr/lib/ssl/openssl.cnf.d/wolfprovider.conf << 'EOF'
+# wolfProvider configuration
+# This file is included by the main openssl.cnf
+
+[provider_sect]
+libwolfprov = libwolfprov_sect
+
+[libwolfprov_sect]
+activate = 1
+EOF
+
+echo "=== Verifying wolfProvider is loaded ==="
+openssl list -providers
+
+echo "=== Done ==="
+
 git stash pop
