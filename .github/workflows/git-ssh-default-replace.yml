@@ -159,12 +159,12 @@ jobs:
         ls -la /tmp/git-test/
         echo "Repository contents:"
         ls -la /tmp/git-test/test-repo.git/
-        echo "Git status in repository:"
-        cd /tmp/git-test/test-repo.git && git status
-        echo "Git log in repository:"
+        echo "Git log in bare repository:"
         cd /tmp/git-test/test-repo.git && git log --oneline
-        echo "Git branches:"
+        echo "Git branches in bare repository:"
         cd /tmp/git-test/test-repo.git && git branch -a
+        echo "Git refs in bare repository:"
+        cd /tmp/git-test/test-repo.git && git show-ref
 
         echo "Git information:"
         which git
@@ -207,12 +207,12 @@ jobs:
             ls -la /tmp/git-test/
             echo "Repository contents:"
             ls -la /tmp/git-test/test-repo.git/
-            echo "Git status in repository:"
-            cd /tmp/git-test/test-repo.git && git status || echo "Git status failed"
-            echo "Git log in repository:"
+            echo "Git log in bare repository:"
             cd /tmp/git-test/test-repo.git && git log --oneline || echo "Git log failed"
-            echo "Git config in repository:"
-            cd /tmp/git-test/test-repo.git && git config --list || echo "Git config failed"
+            echo "Git branches in bare repository:"
+            cd /tmp/git-test/test-repo.git && git branch -a || echo "Git branches failed"
+            echo "Git refs in bare repository:"
+            cd /tmp/git-test/test-repo.git && git show-ref || echo "Git show-ref failed"
           fi
           ;;
               "push")
