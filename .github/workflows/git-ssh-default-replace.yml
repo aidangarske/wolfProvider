@@ -78,8 +78,7 @@ jobs:
       run: |
         export DEBIAN_FRONTEND=noninteractive
         apt-get update
-        apt-get install -y openssh-client openssh-server expect xxd git \ 
-          net-tools git-all
+        apt-get install -y openssh-client openssh-server expect xxd git net-tools git-all
 
     - name: Test OpenSSL provider functionality with default replace
       run: |
