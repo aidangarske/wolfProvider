@@ -133,14 +133,33 @@ jobs:
         PermitRootLogin yes
         PasswordAuthentication no
         PubkeyAuthentication yes
-        AuthorizedKeysFile .root/.ssh/authorized_keys
+        AuthorizedKeysFile /root/.ssh/authorized_keys
         StrictModes no
-        LogLevel DEBUG3
+        LogLevel INFO
         MaxAuthTries 10
         MaxSessions 10
+        UsePAM no
+        UseDNS no
+        KexAlgorithms curve25519-sha256,curve25519-sha256@libssh.org,ecdh-sha2-nistp256,ecdh-sha2-nistp384,ecdh-sha2-nistp521,diffie-hellman-group14-sha256,diffie-hellman-group16-sha512,diffie-hellman-group18-sha512
+        Ciphers chacha20-poly1305@openssh.com,aes128-gcm@openssh.com,aes256-gcm@openssh.com,aes128-ctr,aes192-ctr,aes256-ctr
+        MACs hmac-sha2-256,hmac-sha2-512,hmac-sha1
         EOF
         
-        # Start SSH server
+        # Start SSH server with debug output
+        /usr/sbin/sshd -D -p 2222 -d &
+        SSH_PID=$!
+        sleep 5
+        
+        # Check if SSH server is still running
+        if ! kill -0 $SSH_PID 2>/dev/null; then
+          echo "SSH server crashed, checking logs..."
+          journalctl -u ssh --no-pager -n 20 2>/dev/null || echo "No journalctl available"
+        fi
+        
+        # Try starting SSH server without debug mode
+        echo "=== Trying SSH server without debug mode ==="
+        pkill sshd || true
+        sleep 2
         /usr/sbin/sshd -D -p 2222 &
         sleep 3
         
@@ -236,6 +255,23 @@ jobs:
         
         echo "Testing SSH connection with verbose output:"
         ssh -4 -v -i ~/.ssh/test_key -o ConnectTimeout=10 -o BatchMode=yes -o StrictHostKeyChecking=no root@127.0.0.1 -p 2222 "echo 'SSH connection successful'" 2>&1 || echo "SSH connection failed"
+        
+        # Try a simpler test
+        echo "=== Testing simple SSH connection ==="
+        ssh -4 -o ConnectTimeout=5 -o BatchMode=yes -o StrictHostKeyChecking=no -i ~/.ssh/test_key root@127.0.0.1 -p 2222 "echo 'Simple SSH test successful'" || echo "Simple SSH test failed"
+        
+        # Try with different SSH options
+        echo "=== Testing SSH with different options ==="
+        ssh -4 -o ConnectTimeout=5 -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -i ~/.ssh/test_key root@127.0.0.1 -p 2222 "echo 'SSH with different options successful'" || echo "SSH with different options failed"
+        
+        # Try with legacy algorithms
+        echo "=== Testing SSH with legacy algorithms ==="
+        ssh -4 -o ConnectTimeout=5 -o BatchMode=yes -o StrictHostKeyChecking=no -o KexAlgorithms=diffie-hellman-group1-sha1 -o Ciphers=aes128-cbc -o MACs=hmac-sha1 -i ~/.ssh/test_key root@127.0.0.1 -p 2222 "echo 'SSH with legacy algorithms successful'" || echo "SSH with legacy algorithms failed"
+        
+        # Check SSH server status after connection attempt
+        echo "=== SSH Server Status After Test ==="
+        ps aux | grep sshd | grep -v grep
+        netstat -tlnp | grep 2222 || echo "Port 2222 not found in netstat"
         
         # Check if the key is properly formatted
         echo "=== Checking SSH Key ==="
