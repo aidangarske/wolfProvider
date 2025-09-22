@@ -13,6 +13,7 @@ echo ""
 KEY_TYPES=("rsa" "ecdsa" "ed25519")
 ITERATIONS=10
 TEST_BASE_DIR="/tmp/git-wolfprovider-test"
+SSH_TEST_ENABLED=${SSH_TEST_ENABLED:-true}  # Enable SSH key testing
 
 # Non-interactive settings
 VERBOSE_OUTPUT=${VERBOSE_OUTPUT:-false}  # Set to true for verbose output
