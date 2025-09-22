@@ -133,9 +133,11 @@ jobs:
         PermitRootLogin yes
         PasswordAuthentication no
         PubkeyAuthentication yes
-        AuthorizedKeysFile .ssh/authorized_keys
+        AuthorizedKeysFile .root/.ssh/authorized_keys
         StrictModes no
-        LogLevel ERROR
+        LogLevel DEBUG3
+        MaxAuthTries 10
+        MaxSessions 10
         EOF
         
         # Start SSH server
@@ -169,8 +171,15 @@ jobs:
         echo "Generated key info:"
         ssh-keygen -l -f ~/.ssh/test_key.pub
         
+        # Copy authorized key to both locations
         cp ~/.ssh/test_key.pub ~/.ssh/authorized_keys
         chmod 600 ~/.ssh/authorized_keys
+        
+        # Also copy to root's home directory
+        mkdir -p /root/.ssh
+        cp ~/.ssh/test_key.pub /root/.ssh/authorized_keys
+        chmod 600 /root/.ssh/authorized_keys
+        chmod 700 /root/.ssh
         
         # Configure SSH for git testing
         cat > ~/.ssh/config << EOF
@@ -205,12 +214,26 @@ jobs:
         git remote add origin /tmp/git-test/test-repo.git
         git push origin main
         
-        # Test SSH connection
+        # Test SSH connection with verbose output
         echo "=== Testing SSH Connection ==="
-        ssh -4 -o ConnectTimeout=5 -o BatchMode=yes root@localhost -p 2222 "echo 'SSH connection successful'" || echo "SSH connection failed"
+        echo "SSH client version:"
+        ssh -V
         
-        # Also test with 127.0.0.1 explicitly
-        ssh -4 -o ConnectTimeout=5 -o BatchMode=yes root@127.0.0.1 -p 2222 "echo 'SSH connection to 127.0.0.1 successful'" || echo "SSH connection to 127.0.0.1 failed"
+        echo "SSH server logs:"
+        tail -20 /var/log/auth.log 2>/dev/null || echo "No auth.log found"
+        
+        echo "Testing SSH connection with verbose output:"
+        ssh -4 -v -o ConnectTimeout=10 -o BatchMode=yes -o StrictHostKeyChecking=no root@127.0.0.1 -p 2222 "echo 'SSH connection successful'" 2>&1 || echo "SSH connection failed"
+        
+        # Check if the key is properly formatted
+        echo "=== Checking SSH Key ==="
+        ls -la ~/.ssh/
+        echo "Private key permissions:"
+        ls -la ~/.ssh/test_key
+        echo "Public key content:"
+        cat ~/.ssh/test_key.pub
+        echo "Authorized keys content:"
+        cat ~/.ssh/authorized_keys
         
         SUCCESS_COUNT=0
         FAILURE_COUNT=0
