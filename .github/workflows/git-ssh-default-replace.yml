@@ -114,10 +114,13 @@ jobs:
           exit 1
         fi
 
-    - name: Test git operations with wolfProvider default replace
-      shell: bash
-      run: |
-        echo "Testing git operations with wolfProvider default replace"
+        - name: Test git operations with wolfProvider default replace
+          shell: bash
+          run: |
+            echo "Testing git operations with wolfProvider default replace"
+            
+            # Disable exit on error to continue testing even if some operations fail
+            set +e
                 
         # Set up git test environment
         echo "Setting up git test environment"
@@ -194,12 +197,10 @@ jobs:
           echo "Current directory: $(pwd)"
           echo "Repository exists: $(test -d /tmp/git-test/test-repo.git && echo 'YES' || echo 'NO')"
           
-          # Try to clone with verbose output and capture exit code
-          echo "Running: git clone --verbose /tmp/git-test/test-repo.git cloned-repo"
-          set +e  # Don't exit on error
-          git clone --verbose /tmp/git-test/test-repo.git cloned-repo 2>&1 | tee -a "$ERROR_LOG"
-          CLONE_EXIT_CODE=$?
-          set -e  # Re-enable exit on error
+            # Try to clone with verbose output and capture exit code
+            echo "Running: git clone --verbose /tmp/git-test/test-repo.git cloned-repo"
+            git clone --verbose /tmp/git-test/test-repo.git cloned-repo 2>&1 | tee -a "$ERROR_LOG"
+            CLONE_EXIT_CODE=$?
           
           echo "Git clone exit code: $CLONE_EXIT_CODE"
           
@@ -212,11 +213,17 @@ jobs:
               echo "Cloned repository exists and contains:"
               ls -la cloned-repo/
               echo "Git status in cloned repo:"
-              cd cloned-repo
-              git status
-              echo "Git log in cloned repo:"
-              git log --oneline
-              cd ..
+              if cd cloned-repo; then
+                echo "Current directory after cd: $(pwd)"
+                git status || echo "Git status failed"
+                echo "Git log in cloned repo:"
+                git log --oneline || echo "Git log failed"
+                echo "Going back to parent directory..."
+                cd .. || echo "Failed to return to parent directory"
+                echo "Current directory after cd ..: $(pwd)"
+              else
+                echo "ERROR: Failed to enter cloned-repo directory"
+              fi
             else
               echo "ERROR: cloned-repo directory not found after successful clone"
               STATUS="FAILURE"
@@ -239,54 +246,90 @@ jobs:
           fi
           ;;
               "push")
+                echo "Testing push operation..."
                 if [ -d "cloned-repo" ]; then
-                  cd cloned-repo
-                  echo "Test change $attempt" >> test-file.txt
-                  git add test-file.txt
-                  git commit -m "Test commit $attempt" || true
-                  if timeout 30 git push origin main 2>>"$ERROR_LOG"; then
-                    STATUS="SUCCESS"
-                    ((SUCCESS_COUNT++))
+                  echo "Entering cloned-repo directory..."
+                  if cd cloned-repo; then
+                    echo "Current directory: $(pwd)"
+                    echo "Test change $attempt" >> test-file.txt
+                    git add test-file.txt || echo "Git add failed"
+                    git commit -m "Test commit $attempt" || echo "Git commit failed"
+                    echo "Attempting git push..."
+                    if timeout 30 git push origin main 2>>"$ERROR_LOG"; then
+                      STATUS="SUCCESS"
+                      ((SUCCESS_COUNT++))
+                      echo "Push successful"
+                    else
+                      STATUS="FAILURE"
+                      ((FAILURE_COUNT++))
+                      echo "Push failed on attempt $attempt" >> "$ERROR_LOG"
+                    fi
+                    echo "Returning to parent directory..."
+                    cd .. || echo "Failed to return to parent directory"
+                    echo "Current directory after cd ..: $(pwd)"
                   else
+                    echo "ERROR: Failed to enter cloned-repo directory for push"
                     STATUS="FAILURE"
                     ((FAILURE_COUNT++))
-                    echo "Push failed on attempt $attempt" >> "$ERROR_LOG"
                   fi
-                  cd ..
                 else
                   STATUS="SKIPPED"
                   echo "Skipping push - clone failed" >> "$ERROR_LOG"
                 fi
                 ;;
               "pull")
+                echo "Testing pull operation..."
                 if [ -d "cloned-repo" ]; then
-                  cd cloned-repo
-                  if timeout 30 git pull origin main 2>>"$ERROR_LOG"; then
-                    STATUS="SUCCESS"
-                    ((SUCCESS_COUNT++))
+                  echo "Entering cloned-repo directory for pull..."
+                  if cd cloned-repo; then
+                    echo "Current directory: $(pwd)"
+                    echo "Attempting git pull..."
+                    if timeout 30 git pull origin main 2>>"$ERROR_LOG"; then
+                      STATUS="SUCCESS"
+                      ((SUCCESS_COUNT++))
+                      echo "Pull successful"
+                    else
+                      STATUS="FAILURE"
+                      ((FAILURE_COUNT++))
+                      echo "Pull failed on attempt $attempt" >> "$ERROR_LOG"
+                    fi
+                    echo "Returning to parent directory..."
+                    cd .. || echo "Failed to return to parent directory"
+                    echo "Current directory after cd ..: $(pwd)"
                   else
+                    echo "ERROR: Failed to enter cloned-repo directory for pull"
                     STATUS="FAILURE"
                     ((FAILURE_COUNT++))
-                    echo "Pull failed on attempt $attempt" >> "$ERROR_LOG"
                   fi
-                  cd ..
                 else
                   STATUS="SKIPPED"
                   echo "Skipping pull - clone failed" >> "$ERROR_LOG"
                 fi
                 ;;
               "fetch")
+                echo "Testing fetch operation..."
                 if [ -d "cloned-repo" ]; then
-                  cd cloned-repo
-                  if timeout 30 git fetch origin 2>>"$ERROR_LOG"; then
-                    STATUS="SUCCESS"
-                    ((SUCCESS_COUNT++))
+                  echo "Entering cloned-repo directory for fetch..."
+                  if cd cloned-repo; then
+                    echo "Current directory: $(pwd)"
+                    echo "Attempting git fetch..."
+                    if timeout 30 git fetch origin 2>>"$ERROR_LOG"; then
+                      STATUS="SUCCESS"
+                      ((SUCCESS_COUNT++))
+                      echo "Fetch successful"
+                    else
+                      STATUS="FAILURE"
+                      ((FAILURE_COUNT++))
+                      echo "Fetch failed on attempt $attempt" >> "$ERROR_LOG"
+                    fi
+                    echo "Returning to parent directory..."
+                    cd .. || echo "Failed to return to parent directory"
+                    echo "Current directory after cd ..: $(pwd)"
                   else
+                    echo "ERROR: Failed to enter cloned-repo directory for fetch"
                     STATUS="FAILURE"
                     ((FAILURE_COUNT++))
-                    echo "Fetch failed on attempt $attempt" >> "$ERROR_LOG"
                   fi
-                  cd ..
                 else
                   STATUS="SKIPPED"
                   echo "Skipping fetch - clone failed" >> "$ERROR_LOG"
