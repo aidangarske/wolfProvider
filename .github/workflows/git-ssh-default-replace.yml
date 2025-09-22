@@ -78,7 +78,8 @@ jobs:
       run: |
         export DEBIAN_FRONTEND=noninteractive
         apt-get update
-        apt-get install -y openssh-client openssh-server expect xxd git net-tools
+        apt-get install -y openssh-client openssh-server expect xxd git \ 
+          net-tools git-all
 
     - name: Test OpenSSL provider functionality with default replace
       run: |
@@ -152,6 +153,12 @@ jobs:
           echo "FAILURE: wolfProvider is not active before git operations"
           exit 1
         fi
+
+        echo "Git information:"
+        which git
+        git --version
+        ls -l $(which git)
+        git help -a
 
         SUCCESS_COUNT=0
         FAILURE_COUNT=0
