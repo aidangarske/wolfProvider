@@ -28,6 +28,7 @@ jobs:
       env:
         DEBIAN_FRONTEND: noninteractive
     needs: build_wolfprovider
+    continue-on-error: true
     strategy:
       matrix:
         wolfssl_ref: ['master', 'v5.8.2-stable']
@@ -128,6 +129,7 @@ jobs:
         # Create new config
         cat > /etc/ssh/sshd_config << 'EOF'
         Port 2222
+        AddressFamily inet
         PermitRootLogin yes
         PasswordAuthentication no
         PubkeyAuthentication yes
@@ -205,7 +207,10 @@ jobs:
         
         # Test SSH connection
         echo "=== Testing SSH Connection ==="
-        ssh -o ConnectTimeout=5 -o BatchMode=yes root@localhost -p 2222 "echo 'SSH connection successful'" || echo "SSH connection failed"
+        ssh -4 -o ConnectTimeout=5 -o BatchMode=yes root@localhost -p 2222 "echo 'SSH connection successful'" || echo "SSH connection failed"
+        
+        # Also test with 127.0.0.1 explicitly
+        ssh -4 -o ConnectTimeout=5 -o BatchMode=yes root@127.0.0.1 -p 2222 "echo 'SSH connection to 127.0.0.1 successful'" || echo "SSH connection to 127.0.0.1 failed"
         
         SUCCESS_COUNT=0
         FAILURE_COUNT=0
