@@ -140,10 +140,10 @@ jobs:
         git commit -m "Initial commit"
         git remote add origin /tmp/git-test/test-repo.git
         git push origin main
-        
+
         # Test git operations
         echo "=== Testing Git Operations with wolfProvider Default Replace ==="
-
+ 
         # Verify wolfProvider is active before git operations
         echo "=== Pre-Git wolfProvider Verification ==="
         if openssl list -providers | grep -q "wolfSSL Provider"; then
@@ -152,94 +152,123 @@ jobs:
           echo "FAILURE: wolfProvider is not active before git operations"
           exit 1
         fi
+        
+        # Verify the test repository is properly set up
+        echo "=== Repository Setup Verification ==="
+        echo "Checking test repository:"
+        ls -la /tmp/git-test/
+        echo "Repository contents:"
+        ls -la /tmp/git-test/test-repo.git/
+        echo "Git status in repository:"
+        cd /tmp/git-test/test-repo.git && git status
+        echo "Git log in repository:"
+        cd /tmp/git-test/test-repo.git && git log --oneline
+        echo "Git branches:"
+        cd /tmp/git-test/test-repo.git && git branch -a
 
         echo "Git information:"
         which git
         git --version
         ls -l $(which git)
         git help -a
-
+        
         SUCCESS_COUNT=0
         FAILURE_COUNT=0
         TIMING_LOG="/tmp/git-timing-${{ matrix.key_type }}.log"
         ERROR_LOG="/tmp/git-errors-${{ matrix.key_type }}.log"
         echo "Iteration,Operation,Status,Duration,Error" > "$TIMING_LOG"
-
+        
         for attempt in $(seq 1 ${{ matrix.iterations }}); do
           echo "=== Attempt $attempt for ${{ matrix.key_type }} ==="
           TEST_DIR="/tmp/git-test-$attempt"
           mkdir -p "$TEST_DIR"
           cd "$TEST_DIR"
-
+          
           for operation in "clone" "push" "pull" "fetch"; do
             echo "Testing $operation operation..."
             START_TIME=$(date +%s.%N)
-
+            
             case "$operation" in
         "clone")
-          if timeout 30 git clone /tmp/git-test/test-repo.git cloned-repo 2>>"$ERROR_LOG"; then
+          echo "Attempting to clone from /tmp/git-test/test-repo.git"
+          echo "Current directory: $(pwd)"
+          echo "Repository exists: $(test -d /tmp/git-test/test-repo.git && echo 'YES' || echo 'NO')"
+          
+          # Try to clone with verbose output
+          if timeout 30 git clone --verbose /tmp/git-test/test-repo.git cloned-repo 2>&1 | tee -a "$ERROR_LOG"; then
             STATUS="SUCCESS"
             ((SUCCESS_COUNT++))
+            echo "Clone successful"
           else
             STATUS="FAILURE"
             ((FAILURE_COUNT++))
             echo "Clone failed on attempt $attempt" >> "$ERROR_LOG"
+            echo "Clone failed - checking repository:"
+            ls -la /tmp/git-test/
+            echo "Repository contents:"
+            ls -la /tmp/git-test/test-repo.git/
+            echo "Git status in repository:"
+            cd /tmp/git-test/test-repo.git && git status || echo "Git status failed"
+            echo "Git log in repository:"
+            cd /tmp/git-test/test-repo.git && git log --oneline || echo "Git log failed"
+            echo "Git config in repository:"
+            cd /tmp/git-test/test-repo.git && git config --list || echo "Git config failed"
           fi
           ;;
-        "push")
-          if [ -d "cloned-repo" ]; then
-            cd cloned-repo
-            echo "Test change $attempt" >> test-file.txt
-            git add test-file.txt
-            git commit -m "Test commit $attempt" || true
-            if timeout 30 git push origin main 2>>"$ERROR_LOG"; then
-              STATUS="SUCCESS"
-              ((SUCCESS_COUNT++))
-            else
-              STATUS="FAILURE"
-              ((FAILURE_COUNT++))
-              echo "Push failed on attempt $attempt" >> "$ERROR_LOG"
-            fi
-            cd ..
-          else
-            STATUS="SKIPPED"
-            echo "Skipping push - clone failed" >> "$ERROR_LOG"
-          fi
-          ;;
-        "pull")
-          if [ -d "cloned-repo" ]; then
-            cd cloned-repo
-            if timeout 30 git pull origin main 2>>"$ERROR_LOG"; then
-              STATUS="SUCCESS"
-              ((SUCCESS_COUNT++))
-            else
-              STATUS="FAILURE"
-              ((FAILURE_COUNT++))
-              echo "Pull failed on attempt $attempt" >> "$ERROR_LOG"
-            fi
-            cd ..
-          else
-            STATUS="SKIPPED"
-            echo "Skipping pull - clone failed" >> "$ERROR_LOG"
-          fi
-          ;;
-        "fetch")
-          if [ -d "cloned-repo" ]; then
-            cd cloned-repo
-            if timeout 30 git fetch origin 2>>"$ERROR_LOG"; then
-              STATUS="SUCCESS"
-              ((SUCCESS_COUNT++))
-            else
-              STATUS="FAILURE"
-              ((FAILURE_COUNT++))
-              echo "Fetch failed on attempt $attempt" >> "$ERROR_LOG"
-            fi
-            cd ..
-          else
-            STATUS="SKIPPED"
-            echo "Skipping fetch - clone failed" >> "$ERROR_LOG"
-          fi
-          ;;
+              "push")
+                if [ -d "cloned-repo" ]; then
+                  cd cloned-repo
+                  echo "Test change $attempt" >> test-file.txt
+                  git add test-file.txt
+                  git commit -m "Test commit $attempt" || true
+                  if timeout 30 git push origin main 2>>"$ERROR_LOG"; then
+                    STATUS="SUCCESS"
+                    ((SUCCESS_COUNT++))
+                  else
+                    STATUS="FAILURE"
+                    ((FAILURE_COUNT++))
+                    echo "Push failed on attempt $attempt" >> "$ERROR_LOG"
+                  fi
+                  cd ..
+                else
+                  STATUS="SKIPPED"
+                  echo "Skipping push - clone failed" >> "$ERROR_LOG"
+                fi
+                ;;
+              "pull")
+                if [ -d "cloned-repo" ]; then
+                  cd cloned-repo
+                  if timeout 30 git pull origin main 2>>"$ERROR_LOG"; then
+                    STATUS="SUCCESS"
+                    ((SUCCESS_COUNT++))
+                  else
+                    STATUS="FAILURE"
+                    ((FAILURE_COUNT++))
+                    echo "Pull failed on attempt $attempt" >> "$ERROR_LOG"
+                  fi
+                  cd ..
+                else
+                  STATUS="SKIPPED"
+                  echo "Skipping pull - clone failed" >> "$ERROR_LOG"
+                fi
+                ;;
+              "fetch")
+                if [ -d "cloned-repo" ]; then
+                  cd cloned-repo
+                  if timeout 30 git fetch origin 2>>"$ERROR_LOG"; then
+                    STATUS="SUCCESS"
+                    ((SUCCESS_COUNT++))
+                  else
+                    STATUS="FAILURE"
+                    ((FAILURE_COUNT++))
+                    echo "Fetch failed on attempt $attempt" >> "$ERROR_LOG"
+                  fi
+                  cd ..
+                else
+                  STATUS="SKIPPED"
+                  echo "Skipping fetch - clone failed" >> "$ERROR_LOG"
+                fi
+                ;;
             esac
             
             END_TIME=$(date +%s.%N)
@@ -247,16 +276,16 @@ jobs:
             echo "$attempt,$operation,$STATUS,$DURATION," >> "$TIMING_LOG"
             echo "  $operation: $STATUS (${DURATION}s)"
           done
-
+          
           rm -rf "$TEST_DIR"
         done
-
+        
         echo ""
         echo "=== SUMMARY FOR ${{ matrix.key_type }} KEY ==="
         echo "Total operations: $((SUCCESS_COUNT + FAILURE_COUNT))"
         echo "Successful operations: $SUCCESS_COUNT"
         echo "Failed operations: $FAILURE_COUNT"
-
+        
         if [ $FAILURE_COUNT -gt 0 ]; then
           FAILURE_RATE=$(echo "scale=2; $FAILURE_COUNT * 100 / ($SUCCESS_COUNT + $FAILURE_COUNT)" | bc -l)
           echo "Failure rate: ${FAILURE_RATE}%"
@@ -266,7 +295,7 @@ jobs:
         else
           echo "Failure rate: 0%"
         fi
-
+        
         echo ""
         echo "Timing data saved to: $TIMING_LOG"
         echo "Error log saved to: $ERROR_LOG"
@@ -278,7 +307,7 @@ jobs:
         fi
 
         # Final verification that wolfProvider is still working
-        echo ""
+          echo ""
         echo "=== Final wolfProvider Verification ==="
         if openssl list -providers | grep -q "wolfSSL Provider"; then
           echo "SUCCESS: wolfProvider is still active after git operations"
@@ -287,7 +316,7 @@ jobs:
         fi
 
         # Test that wolfProvider is being used for SSL operations (which git uses internally)
-        echo ""
+          echo ""
         echo "=== Testing wolfProvider Usage in SSL Context ==="
         echo "Testing SSL operations that git would use internally:"
 
