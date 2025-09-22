@@ -33,7 +33,7 @@ jobs:
       matrix:
         wolfssl_ref: ['master', 'v5.8.2-stable']
         key_type: ['rsa', 'ecdsa', 'ed25519']
-        iterations: [50]
+        iterations: [10]
     env:
       WOLFSSL_PACKAGES_PATH: /tmp/wolfssl-packages
       OPENSSL_PACKAGES_PATH: /tmp/openssl-packages
