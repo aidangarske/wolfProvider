@@ -212,9 +212,11 @@ jobs:
               echo "Cloned repository exists and contains:"
               ls -la cloned-repo/
               echo "Git status in cloned repo:"
-              cd cloned-repo && git status
+              cd cloned-repo
+              git status
               echo "Git log in cloned repo:"
-              cd cloned-repo && git log --oneline
+              git log --oneline
+              cd ..
             else
               echo "ERROR: cloned-repo directory not found after successful clone"
               STATUS="FAILURE"
