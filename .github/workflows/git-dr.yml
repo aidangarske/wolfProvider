@@ -1,0 +1,128 @@
+name: Git SSH Default Replace Tests
+
+on:
+  push:
+    branches: [ 'master', 'main', 'release/**', ]
+  pull_request:
+    branches: [ '*' ]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build_wolfprovider:
+    uses: ./.github/workflows/build-wolfprovider.yml
+    with:
+      wolfssl_ref: ${{ matrix.wolfssl_ref }}
+      openssl_ref: 'openssl-3.5.0'
+      replace_default: true
+    strategy:
+      matrix:
+        wolfssl_ref: ['master', 'v5.8.2-stable']
+
+  git-ssh-default-replace-test:
+    runs-on: ubuntu-22.04
+    container:
+      image: debian:bookworm
+      env:
+        DEBIAN_FRONTEND: noninteractive
+    needs: build_wolfprovider
+    continue-on-error: true
+    strategy:
+      matrix:
+        wolfssl_ref: ['master', 'v5.8.2-stable']
+        key_type: ['rsa', 'ecdsa', 'ed25519']
+        iterations: [50]
+    env:
+      WOLFSSL_PACKAGES_PATH: /tmp/wolfssl-packages
+      OPENSSL_PACKAGES_PATH: /tmp/openssl-packages
+      WOLFPROV_PACKAGES_PATH: /tmp/wolfprov-packages
+
+    steps:
+    - name: Checkout wolfProvider
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 1
+
+    - name: Checking OpenSSL/wolfProvider packages in cache
+      uses: actions/cache/restore@v4
+      id: wolfprov-cache
+      with:
+        path: |
+          ${{ env.WOLFSSL_PACKAGES_PATH }}
+          ${{ env.OPENSSL_PACKAGES_PATH }}
+          ${{ env.WOLFPROV_PACKAGES_PATH }}
+        key: openssl-wolfprov-debian-packages-${{ github.sha }}-replace-default
+        fail-on-cache-miss: true
+
+    - name: Install wolfSSL/OpenSSL/wolfprov packages
+      run: |
+        printf "Installing OpenSSL/wolfProvider packages:\n"
+        ls -la ${{ env.WOLFSSL_PACKAGES_PATH }}
+        ls -la ${{ env.OPENSSL_PACKAGES_PATH }}
+        ls -la ${{ env.WOLFPROV_PACKAGES_PATH }}
+
+        apt install --reinstall -y \
+          ${{ env.WOLFSSL_PACKAGES_PATH }}/libwolfssl_*.deb
+
+        apt install --reinstall -y \
+          ${{ env.OPENSSL_PACKAGES_PATH }}/openssl_*.deb \
+          ${{ env.OPENSSL_PACKAGES_PATH }}/libssl3_*.deb \
+          ${{ env.OPENSSL_PACKAGES_PATH }}/libssl-dev_*.deb
+
+        apt install --reinstall -y \
+          ${{ env.WOLFPROV_PACKAGES_PATH }}/libwolfprov_*.deb
+
+    - name: Set up environment
+      run: |
+        export DEBIAN_FRONTEND=noninteractive
+        apt-get update
+        apt-get install -y openssh-client openssh-server expect xxd git net-tools git-all
+
+    - name: Test OpenSSL provider functionality with default replace
+      run: |
+        # Test with wolfProvider enabled (default replace)
+        PROVIDER_CONF="/usr/lib/ssl/openssl.cnf.d/wolfprovider.conf"
+        echo "Testing with wolfProvider enabled (default replace):"
+        if [ -f $PROVIDER_CONF ]; then
+          echo "   - wolfProvider configuration found at $PROVIDER_CONF"
+          cat $PROVIDER_CONF
+        else
+          echo "ERROR: $PROVIDER_CONF not found!"
+          exit 1
+        fi
+
+        echo "Verifying wolfProvider is active:"
+        openssl list -providers
+        if openssl list -providers | grep -i "wolfSSL Provider"; then
+          echo "SUCCESS: wolfProvider is loaded"
+        else
+          echo "ERROR: wolfProvider not found in provider list"
+          exit 1
+        fi
+
+        echo "Verifying wolfProvider replace default version:"
+        echo "openssl version -a"
+        if openssl version -a | grep -q "Library: OpenSSL 3.5.2+wolfProvider-nonfips"; then
+          echo "SUCCESS: wolfProvider replace default version is correct"
+        else
+          echo "ERROR: wolfProvider replace default version is incorrect"
+          exit 1
+        fi
+
+    - name: Run git + replace default + ssh test
+      run: |
+        echo "=== Running Git + replace default + ssh Test ==="
+        echo "Using the local test script for consistent testing"
+        # Run the test with the matrix parameters
+        echo "Testing with key type: ${{ matrix.key_type }}"
+        echo "Running ${{ matrix.iterations }} iterations"
+
+        # Run the scripts test
+        ./scripts/test-git-dr.sh \
+          --key-types "${{ matrix.key_type }}" \
+          --iterations "${{ matrix.iterations }}" \
+          --verbose
+
+        echo "=== Test completed for ${{ matrix.key_type }} ==="
