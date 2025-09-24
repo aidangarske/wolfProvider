@@ -1,5 +1,22 @@
 #!/bin/bash
-
+#
+# Copyright (C) 2006-2024 wolfSSL Inc.
+#
+# This file is part of wolfProvider.
+#
+# wolfProvider is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 3 of the License, or
+# (at your option) any later version.
+#
+# wolfProvider is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with wolfProvider. If not, see <http://www.gnu.org/licenses/>.
+#
 # Local test script for wolfProvider git operations
 # This script tests git operations with wolfProvider
 # as the default replace provider
@@ -14,12 +31,12 @@ echo ""
 KEY_TYPES=("rsa" "ecdsa" "ed25519" "default")
 ITERATIONS=10
 TEST_BASE_DIR="/tmp/git-wolfprovider-test"
-SSH_TEST_ENABLED=${SSH_TEST_ENABLED:-true}  # Enable SSH key testing
+SSH_TEST_ENABLED=${SSH_TEST_ENABLED:-true}
 
 # Non-interactive settings
-VERBOSE_OUTPUT=${VERBOSE_OUTPUT:-false}     # Set to true for verbose output
-QUIET_MODE=${QUIET_MODE:-false}             # Set to true for minimal output
-MAX_LOG_LINES=${MAX_LOG_LINES:-5}           # Maximum lines to show from git log
+VERBOSE_OUTPUT=${VERBOSE_OUTPUT:-false}
+QUIET_MODE=${QUIET_MODE:-false}
+MAX_LOG_LINES=${MAX_LOG_LINES:-5}
 
 # Force fail functionality
 WOLFPROV_FORCE_FAIL=${WOLFPROV_FORCE_FAIL:-0}
@@ -773,6 +790,47 @@ parse_args() {
     done
 }
 
+test_crypto_path_verification() {
+    # --- BEGIN: Crypto Path Verification ---
+    echo "\n=== Crypto Path Verification for SSH/Git ==="
+
+    # 1. Show GIT SSH overrides
+    GIT_SSH_SHOW="${GIT_SSH:-unset}"
+    GIT_SSH_COMMAND_SHOW="${GIT_SSH_COMMAND:-unset}"
+    echo "GIT_SSH: $GIT_SSH_SHOW"
+    echo "GIT_SSH_COMMAND: $GIT_SSH_COMMAND_SHOW"
+
+    # 2. Which ssh is used
+    SSH_BIN="$(which ssh)"
+    echo "ssh binary: $SSH_BIN"
+
+    # 3. SSH algorithm negotiation (ssh -vvv)
+    GIT_HOST="git@your.git.host" # <-- set this to your actual git host!
+    echo "\nSSH -vvv negotiation output (first 200 lines):"
+    ssh -vvv $GIT_HOST 2>&1 | tee /tmp/ssh-vvv.log | head -200
+
+    # 4. ldd on ssh binary
+    echo "\nldd on ssh binary (look for ssl/crypto/wolf/gnutls):"
+    ldd "$SSH_BIN" | egrep -i 'ssl|crypto|wolf|gnutls' || echo "No SSL/Crypto/Wolf/GnuTLS linkage"
+
+    # 5. strace openat/open (library load)
+    echo "\nstrace openat/open (library load):"
+    strace -e openat,open -f -o /tmp/ssh-open.log ssh -vvv $GIT_HOST 2>/dev/null || true
+    grep -Ei 'libcrypto|libssl|wolf|gnutls' /tmp/ssh-open.log || echo "No libcrypto/libssl/wolf/gnutls loaded"
+
+    # 6. WPFF Test (if applicable)
+    if [ -n "$WPFF" ]; then
+        echo "WPFF is set: $WPFF"
+    else
+        echo "WPFF is not set"
+    fi
+
+    # 7. How to force OpenSSL codepath (for manual test)
+    echo "\nTo force OpenSSL codepath, try:"
+    echo "ssh -o Ciphers=aes256-ctr -o KexAlgorithms=diffie-hellman-group14-sha256 -vvv $GIT_HOST"
+    # --- END: Crypto Path Verification ---
+}
+
 # Main execution
 main() {
     # Parse command line arguments
@@ -817,6 +875,8 @@ main() {
         echo "Set SSH_TEST_ENABLED=true to enable SSH key testing"
         echo ""
     fi
+
+    test_crypto_path_verification
 
     # Final verification
     echo "=== Final wolfProvider Verification ==="
