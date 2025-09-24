@@ -1,8 +1,24 @@
 #!/bin/bash
-
-#----build-workflow.sh----
 #
-# This script builds and installs wolfProvider packages, then runs OpenLDAP tests
+# Copyright (C) 2006-2024 wolfSSL Inc.
+#
+# This file is part of wolfProvider.
+#
+# wolfProvider is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 3 of the License, or
+# (at your option) any later version.
+#
+# wolfProvider is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with wolfProvider. If not, see <http://www.gnu.org/licenses/>.
+#
+# This script builds and installs wolfProvider packages
+
 set -e
 set -x
 
@@ -36,8 +52,6 @@ git config --global --add safe.directory "$PWD"
 # Fetch tags (for Debian versioning)
 git fetch --tags --force --prune
 
-git stash
-
 # Install wolfSSL Debian packages from repo tarball
 mkdir -p "/tmp/wolfssl-pkg"
 chmod +x debian/install-wolfssl.sh
@@ -68,12 +82,6 @@ libssl3_debs=$(ls -1 /tmp/wolfprov-packages/libssl3_[0-9]*.deb 2>/dev/null || tr
 openssl_debs=$(ls -1 /tmp/wolfprov-packages/openssl_[0-9]*.deb 2>/dev/null || true)
 libssl_dev_debs=$(ls -1 /tmp/wolfprov-packages/libssl-dev_[0-9]*.deb 2>/dev/null || true)
 
-# # Completely remove conflicting packages and their dependencies
-# echo "Completely removing conflicting OpenSSL packages..."
-# sudo apt remove --purge -y libssl3t64 libssl3 openssl libssl-dev || true
-# sudo apt autoremove --purge -y || true
-# sudo apt autoclean || true
-
 # Install custom OpenSSL packages
 echo "Installing custom OpenSSL packages..."
 if [ -n "$libssl3_debs" ]; then
@@ -97,13 +105,7 @@ if [ -z "$wolfprov_main" ]; then
 fi
 sudo dpkg -i "$wolfprov_main" || sudo apt install -f -y
 
-# Fix wolfProvider configuration to work with system OpenSSL
-echo "Setting up wolfProvider configuration..."
-export OPENSSL_CONF=/workspace/provider.conf
-
 echo "=== Verifying wolfProvider is loaded ==="
 openssl list -providers
 
-echo "=== Done ==="
-
-git stash pop
+echo "=== Replace Default installed! ==="

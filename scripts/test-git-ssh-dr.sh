@@ -21,10 +21,10 @@ VERBOSE_OUTPUT=${VERBOSE_OUTPUT:-false}     # Set to true for verbose output
 QUIET_MODE=${QUIET_MODE:-false}             # Set to true for minimal output
 MAX_LOG_LINES=${MAX_LOG_LINES:-5}           # Maximum lines to show from git log
 
-# Force fail functionality (like cmd tests)
-WOLFPROV_FORCE_FAIL=${WOLFPROV_FORCE_FAIL:-0}  # Set to 1 to test if wolfProvider is actually being used
-FORCE_FAIL_PASSED=0                            # Track if any tests passed when they should have failed
-FAIL=0                                         # Overall failure flag
+# Force fail functionality
+WOLFPROV_FORCE_FAIL=${WOLFPROV_FORCE_FAIL:-0}
+FORCE_FAIL_PASSED=0
+FAIL=0
 
 # Colors for output
 RED='\033[0;31m'
@@ -153,7 +153,7 @@ test_git_operations() {
                         if [ "${WOLFPROV_FORCE_FAIL}" = "1" ]; then
                             status="SUCCESS"
                             ((success_count++))
-                            print_status "SUCCESS" "Clone successful (with WPFF=1 - wolfProvider is being used!)"
+                            print_status "FAILURE" "Clone successful (with WPFF=1 - wolfProvider is being used!)"
                             check_force_fail
                         else
                             status="SUCCESS"
@@ -201,7 +201,7 @@ test_git_operations() {
                             if [ "${WOLFPROV_FORCE_FAIL}" = "1" ]; then
                                 status="SUCCESS"
                                 ((success_count++))
-                                print_status "SUCCESS" "Push successful (with WPFF=1 - wolfProvider is being used!)"
+                                print_status "FAILURE" "Push successful (with WPFF=1 - wolfProvider is being used!)"
                                 check_force_fail
                             else
                                 status="SUCCESS"
@@ -235,7 +235,7 @@ test_git_operations() {
                             if [ "${WOLFPROV_FORCE_FAIL}" = "1" ]; then
                                 status="SUCCESS"
                                 ((success_count++))
-                                print_status "SUCCESS" "Pull successful (with WPFF=1 - wolfProvider is being used!)"
+                                print_status "FAILURE" "Pull successful (with WPFF=1 - wolfProvider is being used!)"
                                 check_force_fail
                             else
                                 status="SUCCESS"
@@ -269,7 +269,7 @@ test_git_operations() {
                             if [ "${WOLFPROV_FORCE_FAIL}" = "1" ]; then
                                 status="SUCCESS"
                                 ((success_count++))
-                                print_status "SUCCESS" "Fetch successful (with WPFF=1 - wolfProvider is being used!)"
+                                print_status "FAILURE" "Fetch successful (with WPFF=1 - wolfProvider is being used!)"
                                 check_force_fail
                             else
                                 status="SUCCESS"
@@ -376,7 +376,7 @@ test_ssh_key_operations() {
                     if [ "${WOLFPROV_FORCE_FAIL}" = "1" ]; then
                         key_gen_status="SUCCESS"
                         ((success_count++))
-                        print_status "SUCCESS" "RSA key generation successful (with WPFF=1 - wolfProvider is being used!)"
+                        print_status "FAILURE" "RSA key generation successful (with WPFF=1 - wolfProvider is being used!)"
                         check_force_fail
                     else
                         key_gen_status="SUCCESS"
@@ -400,7 +400,7 @@ test_ssh_key_operations() {
                     if [ "${WOLFPROV_FORCE_FAIL}" = "1" ]; then
                         key_gen_status="SUCCESS"
                         ((success_count++))
-                        print_status "SUCCESS" "ECDSA key generation successful (with WPFF=1 - wolfProvider is being used!)"
+                        print_status "FAILURE" "ECDSA key generation successful (with WPFF=1 - wolfProvider is being used!)"
                         check_force_fail
                     else
                         key_gen_status="SUCCESS"
@@ -424,7 +424,7 @@ test_ssh_key_operations() {
                     if [ "${WOLFPROV_FORCE_FAIL}" = "1" ]; then
                         key_gen_status="SUCCESS"
                         ((success_count++))
-                        print_status "SUCCESS" "ED25519 key generation successful (with WPFF=1 - wolfProvider is being used!)"
+                        print_status "FAILURE" "ED25519 key generation successful (with WPFF=1 - wolfProvider is being used!)"
                         check_force_fail
                     else
                         key_gen_status="SUCCESS"
@@ -449,7 +449,7 @@ test_ssh_key_operations() {
                     if [ "${WOLFPROV_FORCE_FAIL}" = "1" ]; then
                         key_gen_status="SUCCESS"
                         ((success_count++))
-                        print_status "SUCCESS" "Default SSH key generation successful (with WPFF=1 - wolfProvider is being used!)"
+                        print_status "FAILURE" "Default SSH key generation successful (with WPFF=1 - wolfProvider is being used!)"
                         check_force_fail
                     else
                         key_gen_status="SUCCESS"
@@ -499,7 +499,7 @@ test_ssh_key_operations() {
                             if [ "${WOLFPROV_FORCE_FAIL}" = "1" ]; then
                                 status="SUCCESS"
                                 ((success_count++))
-                                print_status "SUCCESS" "Git clone with $key_type key successful (with WPFF=1 - wolfProvider is being used!)"
+                                print_status "FAILURE" "Git clone with $key_type key successful (with WPFF=1 - wolfProvider is being used!)"
                                 check_force_fail
                             else
                                 status="SUCCESS"
@@ -542,7 +542,7 @@ test_ssh_key_operations() {
                                 if [ "${WOLFPROV_FORCE_FAIL}" = "1" ]; then
                                     status="SUCCESS"
                                     ((success_count++))
-                                    print_status "SUCCESS" "Git push with $key_type key successful (with WPFF=1 - wolfProvider is being used!)"
+                                    print_status "FAILURE" "Git push with $key_type key successful (with WPFF=1 - wolfProvider is being used!)"
                                     check_force_fail
                                 else
                                     status="SUCCESS"
@@ -576,7 +576,7 @@ test_ssh_key_operations() {
                                 if [ "${WOLFPROV_FORCE_FAIL}" = "1" ]; then
                                     status="SUCCESS"
                                     ((success_count++))
-                                    print_status "SUCCESS" "Git pull with $key_type key successful (with WPFF=1 - wolfProvider is being used!)"
+                                    print_status "FAILURE" "Git pull with $key_type key successful (with WPFF=1 - wolfProvider is being used!)"
                                     check_force_fail
                                 else
                                     status="SUCCESS"
@@ -610,7 +610,7 @@ test_ssh_key_operations() {
                                 if [ "${WOLFPROV_FORCE_FAIL}" = "1" ]; then
                                     status="SUCCESS"
                                     ((success_count++))
-                                    print_status "SUCCESS" "Git fetch with $key_type key successful (with WPFF=1 - wolfProvider is being used!)"
+                                    print_status "FAILURE" "Git fetch with $key_type key successful (with WPFF=1 - wolfProvider is being used!)"
                                     check_force_fail
                                 else
                                     status="SUCCESS"
