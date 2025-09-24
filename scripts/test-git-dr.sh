@@ -1,20 +1,10 @@
 #!/bin/bash
 
 # Local test script for wolfProvider git operations
-# This script tests git operations with wolfProvider as the default replace provider
+# This script tests git operations with wolfProvider
+# as the default replace provider
 
-# # Basic usage (all tests)
-# ./test-git-wolfprovider-local.sh
-# # Verbose debugging
-# ./test-git-wolfprovider-local.sh --verbose
-# # Skip SSH testing (local only)
-# ./test-git-wolfprovider-local.sh --no-ssh
-# # Test only ED25519 keys with more iterations
-# ./test-git-wolfprovider-local.sh --key-types ed25519 --iterations 50
-# # Quiet mode for CI
-# ./test-git-wolfprovider-local.sh --quiet
-
-# set -e  # Temporarily disabled for debugging
+set -e
 
 echo "=== wolfProvider Git Operations Local Test ==="
 echo "Testing git operations with wolfProvider default replace functionality"
@@ -27,9 +17,9 @@ TEST_BASE_DIR="/tmp/git-wolfprovider-test"
 SSH_TEST_ENABLED=${SSH_TEST_ENABLED:-true}  # Enable SSH key testing
 
 # Non-interactive settings
-VERBOSE_OUTPUT=${VERBOSE_OUTPUT:-false}  # Set to true for verbose output
-QUIET_MODE=${QUIET_MODE:-false}          # Set to true for minimal output
-MAX_LOG_LINES=${MAX_LOG_LINES:-5}        # Maximum lines to show from git log
+VERBOSE_OUTPUT=${VERBOSE_OUTPUT:-false}     # Set to true for verbose output
+QUIET_MODE=${QUIET_MODE:-false}             # Set to true for minimal output
+MAX_LOG_LINES=${MAX_LOG_LINES:-5}           # Maximum lines to show from git log
 
 # Colors for output
 RED='\033[0;31m'
@@ -59,51 +49,6 @@ print_status() {
             echo "$message"
             ;;
     esac
-}
-
-# Function to check if wolfProvider is active
-check_wolfprovider() {
-    echo "=== Checking wolfProvider Status ==="
-    
-    # Check if wolfProvider configuration exists
-    PROVIDER_CONF="/usr/lib/ssl/openssl.cnf.d/wolfprovider.conf"
-    if [ -f "$PROVIDER_CONF" ]; then
-        print_status "SUCCESS" "wolfProvider configuration found at $PROVIDER_CONF"
-        echo "Configuration:"
-        cat "$PROVIDER_CONF"
-        echo ""
-    else
-        print_status "WARNING" "$PROVIDER_CONF not found!"
-        print_status "INFO" "Continuing without wolfProvider for SSH key testing only"
-        echo "Note: This test will focus on SSH key generation and git operations"
-        echo "For full wolfProvider testing, install wolfProvider first"
-        echo ""
-        return 0  # Continue without wolfProvider
-    fi
-    
-    # Check if wolfProvider is loaded
-    echo "Verifying wolfProvider is active:"
-    if openssl list -providers | grep -q "wolfSSL Provider"; then
-        print_status "SUCCESS" "wolfProvider is loaded and active"
-        openssl list -providers
-        echo ""
-    else
-        print_status "WARNING" "wolfProvider not found in provider list"
-        print_status "INFO" "Continuing without wolfProvider for SSH key testing only"
-        echo ""
-        return 0  # Continue without wolfProvider
-    fi
-    
-    # Test RSA key generation with wolfProvider as default
-    echo "Testing RSA key generation with wolfProvider as default:"
-    if openssl genpkey -algorithm RSA -out /tmp/test_rsa_key.pem -pass pass:testpass; then
-        print_status "SUCCESS" "RSA key generation works with wolfProvider as default"
-        rm -f /tmp/test_rsa_key.pem
-    else
-        print_status "FAILURE" "RSA key generation failed with wolfProvider as default"
-        return 1
-    fi
-    echo ""
 }
 
 # Function to setup git test environment
@@ -327,9 +272,6 @@ test_git_operations() {
     if [ $failure_count -gt 0 ]; then
         local failure_rate=$(echo "scale=2; $failure_count * 100 / ($success_count + failure_count)" | bc -l)
         echo "Failure rate: ${failure_rate}%"
-        if [ "$key_type" = "ed25519" ] && [ $failure_count -gt 2 ]; then
-            print_status "WARNING" "High failure rate detected for ED25519 keys - potential intermittent issue!"
-        fi
     else
         echo "Failure rate: 0%"
     fi
@@ -581,27 +523,6 @@ test_ssh_key_operations() {
     echo ""
 }
 
-# Function to test SSL operations
-test_ssl_operations() {
-    echo "=== Testing wolfProvider Usage in SSL Context ==="
-    echo "Testing SSL operations that git would use internally:"
-    
-    # Test SSL context creation (similar to what git does for HTTPS)
-    if openssl s_client -connect github.com:443 -servername github.com < /dev/null > /dev/null 2>&1; then
-        print_status "SUCCESS" "SSL connection works with wolfProvider (simulating git HTTPS operations)"
-    else
-        print_status "INFO" "SSL connection test failed (expected in container environment)"
-    fi
-    
-    # Test certificate verification (what git does for SSL)
-    if openssl verify -CAfile /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt > /dev/null 2>&1; then
-        print_status "SUCCESS" "Certificate verification works with wolfProvider"
-    else
-        print_status "INFO" "Certificate verification test completed with wolfProvider"
-    fi
-    echo ""
-}
-
 # Function to cleanup
 cleanup() {
     echo "=== Cleanup ==="
@@ -708,11 +629,8 @@ main() {
         echo ""
     fi
     
-    # Check wolfProvider status
-    if ! check_wolfprovider; then
-        print_status "FAILURE" "wolfProvider is not properly configured. Exiting."
-        exit 1
-    fi
+    # Verify wolfProvider is properly installed
+    source scripts/verify-debian.sh
     
     # Setup git environment
     setup_git_environment
@@ -729,7 +647,6 @@ main() {
     if [ "$SSH_TEST_ENABLED" = "true" ]; then
         echo "=== SSH Key Testing Enabled ==="
         echo "Testing SSH key generation and validation with different key types"
-        echo "Focus: Investigating intermittent ED25519 failures in Bookworm Docker"
         echo ""
         
         for key_type in "${KEY_TYPES[@]}"; do
@@ -740,9 +657,6 @@ main() {
         echo "Set SSH_TEST_ENABLED=true to enable SSH key testing"
         echo ""
     fi
-    
-    # Test SSL operations
-    test_ssl_operations
     
     # Final verification
     echo "=== Final wolfProvider Verification ==="
