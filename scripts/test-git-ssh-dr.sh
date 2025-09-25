@@ -21,14 +21,12 @@
 # This script tests git operations with wolfProvider
 # as the default replace provider
 
-# set -e  # Disabled to handle intermittent git failures gracefully
-
 echo "=== wolfProvider Git Operations Local Test ==="
 echo "Testing git operations with wolfProvider default replace functionality"
 echo ""
 
 # Configuration
-KEY_TYPES=("rsa" "ecdsa" "ed25519" "default")
+KEY_TYPES=("rsa" "ecdsa" "ed25519" "chacha20-poly1305")
 ITERATIONS=10
 TEST_BASE_DIR="/tmp/git-wolfprovider-test"
 SSH_TEST_ENABLED=${SSH_TEST_ENABLED:-true}
@@ -42,6 +40,8 @@ MAX_LOG_LINES=${MAX_LOG_LINES:-5}
 WOLFPROV_FORCE_FAIL=${WOLFPROV_FORCE_FAIL:-0}
 FORCE_FAIL_PASSED=0
 FAIL=0
+
+source "scripts/cmd-test/cmd-test-common.sh"
 
 # Colors for output
 RED='\033[0;31m'
@@ -71,14 +71,6 @@ print_status() {
             echo "$message"
             ;;
     esac
-}
-
-# Helper function to handle force fail checks
-check_force_fail() {
-    if [ "${WOLFPROV_FORCE_FAIL}" = "1" ]; then
-        echo "[PASS] Test passed when force fail was enabled"
-        FORCE_FAIL_PASSED=1
-    fi
 }
 
 # Function to setup git test environment
@@ -141,14 +133,146 @@ verify_repository() {
     echo ""
 }
 
+# Function to verify SSH setup and algorithm negotiation
+verify_ssh_setup() {
+    echo "=== SSH Setup and Algorithm Verification ==="
+    echo ""
+
+    # Check for force fail mode and provide context
+    if [ "${WOLFPROV_FORCE_FAIL}" = "1" ]; then
+        print_status "INFO" "Force fail mode enabled - testing SSH algorithm behavior"
+        echo "Note: SSH defaults to ed25519 and chacha20-poly1305"
+        echo "These algorithms use OpenSSH's inline crypto, not OpenSSL/wolfProvider"
+        echo "Force fail will pass for default behavior since wolfProvider is not used"
+        echo ""
+        echo "SSH-specific forced key generation tests will fail successfully as expected."
+        echo "Since openssl is used for trivial things surrounding the operation WPFF will"
+        echo "make the test fail. However, this DOES NOT mean that wolfProvider/openssl is"
+        echo "being used."
+        echo ""
+    fi
+
+    # Git SSH environment variables
+    echo "=== Git SSH Environment ==="
+    echo "GIT_SSH: ${GIT_SSH:-not set}"
+    echo "GIT_SSH_COMMAND: ${GIT_SSH_COMMAND:-not set}"
+    echo ""
+
+    # SSH binary information
+    echo "=== SSH Binary Information ==="
+    local ssh_binary=$(which ssh)
+    echo "SSH binary: $ssh_binary"
+    echo "SSH version: $(ssh -V 2>&1)"
+    echo ""
+
+    # Detect git remote host
+    local git_remote_url=$(git remote get-url origin 2>/dev/null || echo "")
+    local git_host="github.com"
+    if [[ -n "$git_remote_url" ]]; then
+        if [[ "$git_remote_url" =~ ^git@([^:]+): ]]; then
+            git_host="${BASH_REMATCH[1]}"
+        elif [[ "$git_remote_url" =~ ^ssh://([^/]+)/ ]]; then
+            git_host="${BASH_REMATCH[1]}"
+        elif [[ "$git_remote_url" =~ ^https?://([^/]+)/ ]]; then
+            git_host="${BASH_REMATCH[1]}"
+        fi
+    fi
+
+    local ssh_host="git@$git_host"
+    echo "Target SSH host: $ssh_host"
+    echo ""
+
+    # SSH algorithm negotiation test
+    echo "=== SSH Algorithm Negotiation Test ==="
+    local ssh_log="/tmp/ssh-negotiation.log"
+    local ssh_error_log="/tmp/ssh-negotiation-errors.log"
+
+    print_status "INFO" "Testing SSH connection with verbose output..."
+    if timeout 10 ssh -vvv -o ConnectTimeout=5 -o BatchMode=yes "$ssh_host" 2>"$ssh_error_log" >"$ssh_log" 2>&1; then
+        print_status "SUCCESS" "SSH connection test completed"
+    else
+        print_status "INFO" "SSH connection test completed (connection may have failed as expected)"
+    fi
+
+    # Parse algorithm negotiation results
+    echo "=== Algorithm Negotiation Results ==="
+    if [ -f "$ssh_log" ] && [ -s "$ssh_log" ]; then
+        # Extract key algorithms
+        local kex_algo=$(grep "kex: algorithm:" "$ssh_log" | tail -1 | awk '{print $NF}' || echo "unknown")
+        local hostkey_algo=$(grep "kex: host key algorithm:" "$ssh_log" | tail -1 | awk '{print $NF}' || echo "unknown")
+        local cipher_sc=$(grep "server->client cipher:" "$ssh_log" | tail -1 | awk '{print $5}' || echo "unknown")
+        local cipher_cs=$(grep "client->server cipher:" "$ssh_log" | tail -1 | awk '{print $5}' || echo "unknown")
+
+        echo "Key Exchange Algorithm: $kex_algo"
+        echo "Host Key Algorithm: $hostkey_algo"
+        echo "Server->Client Cipher: $cipher_sc"
+        echo "Client->Server Cipher: $cipher_cs"
+        echo ""
+
+        # Check for ed25519 and chacha20-poly1305 usage
+        local uses_ed25519=false
+        local uses_chacha20=false
+
+        if [[ "$hostkey_algo" == *"ed25519"* ]]; then
+            uses_ed25519=true
+        fi
+        if [[ "$cipher_sc" == *"chacha20"* ]] || [[ "$cipher_cs" == *"chacha20"* ]]; then
+            uses_chacha20=true
+        fi
+
+        if [ "$uses_ed25519" = true ] || [ "$uses_chacha20" = true ]; then
+            print_status "INFO" "Modern SSH algorithms detected"
+            if [ "$uses_ed25519" = true ]; then
+                echo "  - ed25519 host key algorithm detected (OpenSSH inline crypto)"
+            fi
+            if [ "$uses_chacha20" = true ]; then
+                echo "  - chacha20-poly1305 cipher detected (OpenSSH inline crypto)"
+            fi
+            echo "  - These algorithms bypass OpenSSL/wolfProvider"
+            if [ "${WOLFPROV_FORCE_FAIL}" = "1" ]; then
+                print_status "SUCCESS" "Force fail will pass - wolfProvider not used by default SSH algorithms"
+            fi
+        else
+            print_status "INFO" "Traditional SSH algorithms detected"
+            echo "  - These algorithms may use OpenSSL/wolfProvider"
+            if [ "${WOLFPROV_FORCE_FAIL}" = "1" ]; then
+                print_status "WARNING" "Force fail may not pass - wolfProvider may be used"
+            fi
+        fi
+    else
+        print_status "WARNING" "Could not parse SSH negotiation results"
+        echo "SSH log file: $ssh_log"
+        echo "SSH error log: $ssh_error_log"
+    fi
+    echo ""
+
+    # Library linkage analysis
+    echo "=== SSH Binary Library Analysis ==="
+    if command -v ldd >/dev/null 2>&1; then
+        echo "Library dependencies:"
+        ldd "$ssh_binary" | grep -E -i 'ssl|crypto|wolf|gnutls' || echo "  No SSL/Crypto/Wolf/GnuTLS libraries linked"
+    else
+        echo "ldd not available for library analysis"
+    fi
+    echo ""
+
+    # Force OpenSSL codepath instructions
+    echo "=== Force OpenSSL Codepath Instructions ==="
+    echo "To test with OpenSSL/wolfProvider algorithms, use:"
+    echo "  ssh -o Ciphers=aes256-ctr -o KexAlgorithms=diffie-hellman-group14-sha256 -vvv $ssh_host"
+    echo "  ssh -o HostKeyAlgorithms=rsa-sha2-512,rsa-sha2-256 -vvv $ssh_host"
+    echo ""
+
+    # Clean up temporary files
+    rm -f "$ssh_log" "$ssh_error_log"
+}
+
 # Function to test git operations
 test_git_operations() {
     local key_type=$1
     local iterations=$2
 
     echo "=== Testing Git Operations for $key_type ==="
-
-    # source scripts/verify-debian.sh
 
     local success_count=0
     local failure_count=0
@@ -474,28 +598,28 @@ test_ssh_key_operations() {
                     fi
                 fi
                 ;;
-            "default")
-                # Use chacha20-poly1305 cipher for SSH key encryption (default cipher in modern SSH)
-                if ssh-keygen -t ed25519 -Z chacha20-poly1305@openssh.com -f "$ssh_key" -N "" -C "test-default-key-$attempt" 2>/dev/null; then
+            "chacha20-poly1305")
+                # Use chacha20-poly1305 cipher for SSH key encryption (default cipher in SSH)
+                if ssh-keygen -t ed25519 -Z chacha20-poly1305@openssh.com -f "$ssh_key" -N "" -C "test-chacha20-poly1305-key-$attempt" 2>/dev/null; then
                     if [ "${WOLFPROV_FORCE_FAIL}" = "1" ]; then
                         key_gen_status="SUCCESS"
                         ((success_count++))
-                        print_status "FAILURE" "Default SSH key generation successful (with WPFF=1 - wolfProvider may NOT be used!)"
+                        print_status "FAILURE" "chacha20-poly1305 SSH key generation successful (with WPFF=1 - wolfProvider may NOT be used!)"
                         check_force_fail
                     else
                         key_gen_status="SUCCESS"
                         ((success_count++))
-                        print_status "SUCCESS" "Default SSH key generation successful (chacha20-poly1305 cipher)"
+                        print_status "SUCCESS" "chacha20-poly1305 SSH key generation successful"
                     fi
                 else
                     if [ "${WOLFPROV_FORCE_FAIL}" = "1" ]; then
                         key_gen_status="EXPECTED_FAIL"
-                        print_status "SUCCESS" "Default SSH key generation failed as expected (WPFF=1 - wolfProvider IS being used!)"
+                        print_status "SUCCESS" "chacha20-poly1305 SSH key generation failed as expected (WPFF=1 - wolfProvider IS being used!)"
                     else
                         key_gen_status="FAILURE"
                         ((failure_count++))
                         FAIL=1
-                        print_status "FAILURE" "Default SSH key generation failed"
+                        print_status "FAILURE" "chacha20-poly1305 SSH key generation failed"
                     fi
                 fi
                 ;;
@@ -712,75 +836,6 @@ test_ssh_key_operations() {
     echo ""
 }
 
-verify_ssh_setup() {
-    echo "=== Verifying SSH Setup ==="
-    echo "=== GIT SSH Overrides ==="
-    echo "GIT_SSH: $GIT_SSH"
-    echo "GIT_SSH_COMMAND: $GIT_SSH_COMMAND"
-    echo
-
-    echo "=== Which ssh is used ==="
-    which ssh
-    echo
-
-    echo "=== SSH Algorithm Negotiation (ssh -vvv) ==="
-    # Detect git remote host automatically
-    GIT_REMOTE_URL=$(git remote get-url origin 2>/dev/null)
-    if [[ -n "$GIT_REMOTE_URL" ]]; then
-        # Extract host from SSH or HTTPS remote
-        if [[ "$GIT_REMOTE_URL" =~ ^git@([^:]+): ]]; then
-            GIT_HOST="${BASH_REMATCH[1]}"
-        elif [[ "$GIT_REMOTE_URL" =~ ^ssh://([^/]+)/ ]]; then
-            GIT_HOST="${BASH_REMATCH[1]}"
-        elif [[ "$GIT_REMOTE_URL" =~ ^https?://([^/]+)/ ]]; then
-            GIT_HOST="${BASH_REMATCH[1]}"
-        else
-            GIT_HOST="github.com" # fallback
-        fi
-    else
-        GIT_HOST="github.com" # fallback
-    fi
-    ssh_user="git"
-    ssh_host="$ssh_user@$GIT_HOST"
-    echo "Detected git host: $ssh_host"
-    ssh -vvv $ssh_host 2>&1 | tee /tmp/ssh-vvv.log | head -200
-    echo
-
-    echo "=== Parsed Algorithm Negotiation ==="
-    grep -E 'kex: algorithm:|kex: host key algorithm:|kex: server->client|kex: client->server' /tmp/ssh-vvv.log || echo "No negotiation info found"
-    echo
-
-    echo "=== Effective Algorithms (summary) ==="
-    awk '
-      /kex: algorithm:/ {print "KEX: " $NF}
-      /kex: host key algorithm:/ {print "HostKey: " $NF}
-      /server->client cipher:/ {print "Cipher S->C: " $5}
-      /client->server cipher:/ {print "Cipher C->S: " $5}
-    ' /tmp/ssh-vvv.log
-    echo
-
-    echo "=== ldd on ssh binary ==="
-    ldd "$(which ssh)" | egrep -i 'ssl|crypto|wolf|gnutls' || echo "No SSL/Crypto/Wolf/GnuTLS linkage"
-    echo
-
-    echo "=== strace openat/open (library load) ==="
-    strace -e openat,open -f -o /tmp/ssh-open.log ssh -vvv $ssh_host 2>/dev/null || true
-    grep -Ei 'libcrypto|libssl|wolf|gnutls' /tmp/ssh-open.log || echo "No libcrypto/libssl/wolf/gnutls loaded"
-    echo
-
-    echo "=== WPFF Test (if applicable) ==="
-    if [ -n "$WPFF" ]; then
-        echo "WPFF is set: $WPFF"
-    else
-        echo "WPFF is not set"
-    fi
-    echo
-
-    echo "=== If you want to force OpenSSL codepath, try: ==="
-    echo "ssh -o Ciphers=aes256-ctr -o KexAlgorithms=diffie-hellman-group14-sha256 -vvv $ssh_host"
-    echo "and repeat the above checks."
-}
-
 # Function to cleanup
 cleanup() {
     echo "=== Cleanup ==="
@@ -882,7 +937,7 @@ main() {
     echo "=========================================="
     echo ""
 
-    # Check if running as root (recommended for full permissions)
+    # Check if running as root
     if [ "$EUID" -ne 0 ]; then
         print_status "WARNING" "Not running as root. Some operations may fail due to permissions."
         echo "Consider running with: sudo $0"
@@ -890,7 +945,10 @@ main() {
     fi
 
     # Verify wolfProvider is properly installed
-    source scripts/verify-debian.sh
+    ./scripts/verify-debian.sh
+
+    # Verify SSH setup and algorithm negotiation
+    verify_ssh_setup
 
     # Setup git environment
     setup_git_environment
@@ -926,8 +984,6 @@ main() {
         print_status "WARNING" "wolfProvider may have been affected by git operations"
     fi
     echo ""
-
-    verify_ssh_setup
 
     # Cleanup
     cleanup
