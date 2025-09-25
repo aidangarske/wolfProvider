@@ -712,6 +712,75 @@ test_ssh_key_operations() {
     echo ""
 }
 
+verify_ssh_setup() {
+    echo "=== Verifying SSH Setup ==="
+    echo "=== GIT SSH Overrides ==="
+    echo "GIT_SSH: $GIT_SSH"
+    echo "GIT_SSH_COMMAND: $GIT_SSH_COMMAND"
+    echo
+
+    echo "=== Which ssh is used ==="
+    which ssh
+    echo
+
+    echo "=== SSH Algorithm Negotiation (ssh -vvv) ==="
+    # Detect git remote host automatically
+    GIT_REMOTE_URL=$(git remote get-url origin 2>/dev/null)
+    if [[ -n "$GIT_REMOTE_URL" ]]; then
+        # Extract host from SSH or HTTPS remote
+        if [[ "$GIT_REMOTE_URL" =~ ^git@([^:]+): ]]; then
+            GIT_HOST="${BASH_REMATCH[1]}"
+        elif [[ "$GIT_REMOTE_URL" =~ ^ssh://([^/]+)/ ]]; then
+            GIT_HOST="${BASH_REMATCH[1]}"
+        elif [[ "$GIT_REMOTE_URL" =~ ^https?://([^/]+)/ ]]; then
+            GIT_HOST="${BASH_REMATCH[1]}"
+        else
+            GIT_HOST="github.com" # fallback
+        fi
+    else
+        GIT_HOST="github.com" # fallback
+    fi
+    ssh_user="git"
+    ssh_host="$ssh_user@$GIT_HOST"
+    echo "Detected git host: $ssh_host"
+    ssh -vvv $ssh_host 2>&1 | tee /tmp/ssh-vvv.log | head -200
+    echo
+
+    echo "=== Parsed Algorithm Negotiation ==="
+    grep -E 'kex: algorithm:|kex: host key algorithm:|kex: server->client|kex: client->server' /tmp/ssh-vvv.log || echo "No negotiation info found"
+    echo
+
+    echo "=== Effective Algorithms (summary) ==="
+    awk '
+      /kex: algorithm:/ {print "KEX: " $NF}
+      /kex: host key algorithm:/ {print "HostKey: " $NF}
+      /server->client cipher:/ {print "Cipher S->C: " $5}
+      /client->server cipher:/ {print "Cipher C->S: " $5}
+    ' /tmp/ssh-vvv.log
+    echo
+
+    echo "=== ldd on ssh binary ==="
+    ldd "$(which ssh)" | egrep -i 'ssl|crypto|wolf|gnutls' || echo "No SSL/Crypto/Wolf/GnuTLS linkage"
+    echo
+
+    echo "=== strace openat/open (library load) ==="
+    strace -e openat,open -f -o /tmp/ssh-open.log ssh -vvv $ssh_host 2>/dev/null || true
+    grep -Ei 'libcrypto|libssl|wolf|gnutls' /tmp/ssh-open.log || echo "No libcrypto/libssl/wolf/gnutls loaded"
+    echo
+
+    echo "=== WPFF Test (if applicable) ==="
+    if [ -n "$WPFF" ]; then
+        echo "WPFF is set: $WPFF"
+    else
+        echo "WPFF is not set"
+    fi
+    echo
+
+    echo "=== If you want to force OpenSSL codepath, try: ==="
+    echo "ssh -o Ciphers=aes256-ctr -o KexAlgorithms=diffie-hellman-group14-sha256 -vvv $ssh_host"
+    echo "and repeat the above checks."
+}
+
 # Function to cleanup
 cleanup() {
     echo "=== Cleanup ==="
@@ -857,6 +926,8 @@ main() {
         print_status "WARNING" "wolfProvider may have been affected by git operations"
     fi
     echo ""
+
+    verify_ssh_setup
 
     # Cleanup
     cleanup

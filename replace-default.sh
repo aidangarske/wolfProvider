@@ -105,7 +105,6 @@ if [ -z "$wolfprov_main" ]; then
 fi
 sudo dpkg -i "$wolfprov_main" || sudo apt install -f -y
 
-echo "=== Verifying wolfProvider is loaded ==="
-openssl list -providers
+./scripts/verify-debian.sh
 
 echo "=== Replace Default installed! ==="
