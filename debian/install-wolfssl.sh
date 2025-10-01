@@ -22,6 +22,7 @@ install_wolfssl_from_git() {
     local git_tag="$2"
     local debug_mode="$3"
     local reinstall_mode="$4"
+    local fips_mode="$5"
 
     # If no working directory specified, create one using mktemp
     if [ -z "$work_dir" ]; then
@@ -52,71 +53,132 @@ install_wolfssl_from_git() {
     else
         # Clone wolfSSL repository
         echo "Cloning wolfSSL repository..."
-        if [ -n "$git_tag" ]; then
+
+        # Determine git URL scheme based on environment
+        if [ "$GITHUB_ACTIONS" = "true" ]; then
+            echo "Running in GitHub Actions, using HTTPS with token..."
+            WOLFSSL_REPO="https://github.com/wolfSSL/wolfssl"
+            FIPS_SRC_REPO="https://x-access-token:${INSTALL_TOKEN}@github.com/wolfssl/fips-src.git"
+            SCRIPTS_REPO="https://x-access-token:${INSTALL_TOKEN}@github.com/wolfssl/scripts.git"
+        else
+            echo "Running locally, using SSH..."
+            WOLFSSL_REPO="git@github.com:wolfSSL/wolfssl.git"
+            FIPS_SRC_REPO="git@github.com:wolfssl/fips-src.git"
+            SCRIPTS_REPO="git@github.com:wolfssl/scripts.git"
+        fi
+
+        if [ -n "$git_tag" ]; then # If the tag is specifed
             echo "Cloning specific tag/branch: $git_tag"
             git clone https://github.com/wolfSSL/wolfssl
             cd wolfssl
             git checkout "$git_tag"
-        else
-            echo "Cloning master branch with depth 1"
-            git clone https://github.com/wolfSSL/wolfssl --depth 1
+            if [ "$fips_mode" = "fips" ]; then # Securely clone the fips-src and scripts repositories
+                git clone "$FIPS_SRC_REPO" fips-src 2>/dev/null
+                git clone "$SCRIPTS_REPO" scripts-fips 2>/dev/null
+            fi
+        else # No tag specifed
+            if [ "$fips_mode" = "fips" ]; then
+                echo "Cloning master branch (full history for FIPS)"
+                git clone https://github.com/wolfSSL/wolfssl
+            else
+                echo "Cloning master branch with depth 1"
+                git clone https://github.com/wolfSSL/wolfssl --depth 1
+            fi
             cd wolfssl
+            if [ "$fips_mode" = "fips" ]; then # Securely clone the fips-src and scripts repositories
+                git clone "$FIPS_SRC_REPO" fips-src 2>/dev/null
+                git clone "$SCRIPTS_REPO" scripts-fips 2>/dev/null
+            fi
         fi
     fi
 
-    # Check if debian/rules.in exists, if not, we need to backport debian packaging
-    if [ ! -f "debian/rules.in" ]; then
-        echo "debian/rules.in not found, backporting debian packaging from master..."
+    if [ "$fips_mode" = "fips" ]; then
+        # Checkout the v5.8.2-stable and use debian packaging from master
+        git checkout v5.8.2-stable
+        git checkout master -- debian configure.ac
 
-        # Save current branch/tag
-        current_ref=$(git rev-parse HEAD)
+        # Check if XXX-fips-test directory already exists
+        if [ -d "XXX-fips-test" ]; then
+            echo "Found existing XXX-fips-test directory, cleaning it up..."
+            rm -rf XXX-fips-test
+        fi
 
-        # Create a temporary directory for master checkout
-        temp_master_dir=$(mktemp -d)
-        cd "$temp_master_dir"
+        # Run the fips-check-PILOT.sh script
+        echo "Running (host): ./fips-check.sh linuxv5 keep noautogen"
+        cp ./fips-src/fips-check-PILOT.sh .
+        #./fips-check.sh linuxv5 keep noautogen
+        chmod +x ./fips-check-PILOT.sh
+        ./fips-check-PILOT.sh v5.2.4 keep
+        RESULT=$?
+        if [ $RESULT -ne 0 ]; then
+            echo "./fips-check.sh: failed, $RESULT"
+            exit 1
+        fi
 
-        echo "Cloning master branch to get debian directory..."
-        git clone https://github.com/wolfSSL/wolfssl master-checkout
-        cd master-checkout
+        # Copy the debian directory and configure.ac file to the XXX-fips-test directory
+        cd XXX-fips-test
 
-        # Copy debian directory to our working wolfssl
-        echo "Copying debian directory from master..."
-        cp -r debian "$work_dir/wolfssl/"
+        cp -a ../debian .
+        cp ../configure.ac .
 
-        # Go back to our working wolfssl directory
-        cd "$work_dir/wolfssl"
+        # Change package naming for FIPS
+        sed -i "s/^wolfssl (@VERSION@) stable; urgency=medium$/wolfssl (@VERSION@+commercial.fips.linuxv5.2.4) stable; urgency=medium/" debian/changelog.in
+        echo "pwd: $(pwd)"
+    else # Non-FIPS mode setup
+        # Check if debian/rules.in exists, if not, we need to backport debian packaging
+        if [ ! -f "debian/rules.in" ]; then
+            echo "debian/rules.in not found, backporting debian packaging from master..."
 
-        # Clean up temporary directory
-        rm -rf "$temp_master_dir"
+            # Save current branch/tag
+            current_ref=$(git rev-parse HEAD)
 
-        # Patch configure.ac to add required substitutions for debian packaging
-        echo "Patching configure.ac for debian packaging compatibility..."
+            # Create a temporary directory for master checkout
+            temp_master_dir=$(mktemp -d)
+            cd "$temp_master_dir"
 
-        # Check if the patch is already applied
-        if ! grep -q "CONFIGURE_OPTIONS=" configure.ac; then
-            # Find the location to insert the new lines (before AC_OUTPUT or at the end)
-            if grep -q "AC_OUTPUT" configure.ac; then
-                # Insert before AC_OUTPUT
-                sed -i '/^AC_OUTPUT/i \
+            echo "Cloning master branch to get debian directory..."
+            git clone https://github.com/wolfSSL/wolfssl master-checkout
+            cd master-checkout
+
+            # Copy debian directory to our working wolfssl
+            echo "Copying debian directory from master..."
+            cp -r debian "$work_dir/wolfssl/"
+
+            # Go back to our working wolfssl directory
+            cd "$work_dir/wolfssl"
+
+            # Clean up temporary directory
+            rm -rf "$temp_master_dir"
+
+            # Patch configure.ac to add required substitutions for debian packaging
+            echo "Patching configure.ac for debian packaging compatibility..."
+
+            # Check if the patch is already applied
+            if ! grep -q "CONFIGURE_OPTIONS=" configure.ac; then
+                # Find the location to insert the new lines (before AC_OUTPUT or at the end)
+                if grep -q "AC_OUTPUT" configure.ac; then
+                    # Insert before AC_OUTPUT
+                    sed -i '/^AC_OUTPUT/i \
 CONFIGURE_OPTIONS="$ac_configure_args"\
 CONFIGURE_CFLAGS="$CFLAGS"\
 AC_SUBST([CONFIGURE_OPTIONS])\
 AC_SUBST([CONFIGURE_CFLAGS])\
 AC_CONFIG_FILES([debian/rules],[chmod +x debian/rules])' configure.ac
+                else
+                    # Append at the end
+                    echo 'CONFIGURE_OPTIONS="$ac_configure_args"' >> configure.ac
+                    echo 'CONFIGURE_CFLAGS="$CFLAGS"' >> configure.ac
+                    echo 'AC_SUBST([CONFIGURE_OPTIONS])' >> configure.ac
+                    echo 'AC_SUBST([CONFIGURE_CFLAGS])' >> configure.ac
+                    echo 'AC_CONFIG_FILES([debian/rules],[chmod +x debian/rules])' >> configure.ac
+                fi
+                echo "configure.ac patched successfully"
             else
-                # Append at the end
-                echo 'CONFIGURE_OPTIONS="$ac_configure_args"' >> configure.ac
-                echo 'CONFIGURE_CFLAGS="$CFLAGS"' >> configure.ac
-                echo 'AC_SUBST([CONFIGURE_OPTIONS])' >> configure.ac
-                echo 'AC_SUBST([CONFIGURE_CFLAGS])' >> configure.ac
-                echo 'AC_CONFIG_FILES([debian/rules],[chmod +x debian/rules])' >> configure.ac
+                echo "configure.ac already contains required patches"
             fi
-            echo "configure.ac patched successfully"
         else
-            echo "configure.ac already contains required patches"
-        fi        
-    else
-        echo "debian/rules.in found, using existing debian packaging"
+            echo "debian/rules.in found, using existing debian packaging"
+        fi
     fi
 
     # Run autogen.sh
@@ -129,52 +191,45 @@ AC_CONFIG_FILES([debian/rules],[chmod +x debian/rules])' configure.ac
     echo "Fixing test.c for DACVP_VECTOR_TESTING compatibility..."
     sed -i "/^[[:space:]]*if (XMEMCMP(p2, c2, sizeof(p2)))/{ s/^[[:space:]]*/&\/\/ /; n; s/^[[:space:]]*/&\/\/ /; }" wolfcrypt/test/test.c
 
-    # Configure with the specified options
-    echo "Configuring wolfSSL with specified options..."
-    configure_opts="--enable-opensslcoexist \
-        --enable-cmac \
-        --with-eccminsz=192 \
-        --enable-ed25519 \
-        --enable-ed448 \
-        --enable-md5 \
-        --enable-curve25519 \
-        --enable-curve448 \
-        --enable-aesccm \
-        --enable-aesxts \
-        --enable-aescfb \
-        --enable-keygen \
-        --enable-shake128 \
-        --enable-shake256 \
-        --enable-wolfprovider \
-        --enable-rsapss \
-        --enable-scrypt"
+    echo "Configuring wolfSSL $fips_mode with specified options..."
+    if [ "$fips_mode" = "fips" ]; then
+        configure_opts="--enable-opensslcoexist \
+            --enable-cmac \
+            --enable-aesccm \
+            --enable-keygen \
+            --enable-fips=v5 \
+            --enable-rsapss \
+            --enable-scrypt"
+        cflags_opts='CFLAGS="-DWOLFSSL_OLD_OID_SUM -DWOLFSSL_DH_EXTRA -DWOLFSSL_PUBLIC_ASN -DHAVE_PUBLIC_FFDHE -DHAVE_FFDHE_3072 -DHAVE_FFDHE_4096 -DWOLFSSL_DH_EXTRA -DWOLFSSL_PSS_SALT_LEN_DISCOVER -DWOLFSSL_PUBLIC_MP -DWOLFSSL_RSA_KEY_CHECK -DHAVE_AES_ECB -DWC_RSA_DIRECT -DWC_RSA_NO_PADDING -DACVP_VECTOR_TESTING -DWOLFSSL_ECDSA_SET_K"'
+    else
+        configure_opts="--enable-opensslcoexist \
+            --enable-cmac \
+            --with-eccminsz=192 \
+            --enable-ed25519 \
+            --enable-ed448 \
+            --enable-md5 \
+            --enable-curve25519 \
+            --enable-curve448 \
+            --enable-aesccm \
+            --enable-aesxts \
+            --enable-aescfb \
+            --enable-keygen \
+            --enable-shake128 \
+            --enable-shake256 \
+            --enable-wolfprovider \
+            --enable-rsapss \
+            --enable-scrypt"
+        cflags_opts='CFLAGS="-DWOLFSSL_OLD_OID_SUM -DWOLFSSL_PUBLIC_ASN -DHAVE_FFDHE_3072 -DHAVE_FFDHE_4096 -DWOLFSSL_DH_EXTRA -DWOLFSSL_PSS_SALT_LEN_DISCOVER -DWOLFSSL_PUBLIC_MP -DWOLFSSL_RSA_KEY_CHECK -DHAVE_FFDHE_Q -DHAVE_FFDHE_6144 -DHAVE_FFDHE_8192 -DWOLFSSL_ECDSA_DETERMINISTIC_K -DWOLFSSL_VALIDATE_ECC_IMPORT -DRSA_MIN_SIZE=1024 -DHAVE_AES_ECB -DWC_RSA_DIRECT -DWC_RSA_NO_PADDING -DACVP_VECTOR_TESTING -DWOLFSSL_ECDSA_SET_K" LIBS="-lm"'
+    fi
 
-    if [ "$debug_mode" = "true" ]; then
+    # Dont enable debug with fips for now
+    if [ "$debug_mode" = "true" ] && [ "$fips_mode" != "fips" ]; then
         configure_opts="$configure_opts --enable-debug"
         echo "Debug mode enabled"
     fi
 
-    ./configure $configure_opts \
-        CFLAGS="-DWOLFSSL_OLD_OID_SUM \
-            -DWOLFSSL_PUBLIC_ASN \
-            -DHAVE_FFDHE_3072 \
-            -DHAVE_FFDHE_4096 \
-            -DWOLFSSL_DH_EXTRA \
-            -DWOLFSSL_PSS_SALT_LEN_DISCOVER \
-            -DWOLFSSL_PUBLIC_MP \
-            -DWOLFSSL_RSA_KEY_CHECK \
-            -DHAVE_FFDHE_Q \
-            -DHAVE_FFDHE_6144 \
-            -DHAVE_FFDHE_8192 \
-            -DWOLFSSL_ECDSA_DETERMINISTIC_K \
-            -DWOLFSSL_VALIDATE_ECC_IMPORT \
-            -DRSA_MIN_SIZE=1024 \
-            -DHAVE_AES_ECB \
-            -DWC_RSA_DIRECT \
-            -DWC_RSA_NO_PADDING \
-            -DACVP_VECTOR_TESTING \
-            -DWOLFSSL_ECDSA_SET_K" \
-            LIBS="-lm"
+    # Configure with the specified options
+    eval ./configure $configure_opts $cflags_opts
 
     # Build Debian packages
     echo "Building Debian packages..."
@@ -198,6 +253,7 @@ main() {
     local git_tag=""
     local debug_mode="false"
     local reinstall_mode="false"
+    local fips_mode="non-fips"
 
     # Parse command line arguments
     while [[ $# -gt 0 ]]; do
@@ -210,6 +266,7 @@ main() {
                 echo "  -t, --tag TAG        Clone and build specific tag or branch (default: master)"
                 echo "  -d, --debug          Enable debug build mode (adds --enable-debug)"
                 echo "  -r, --reinstall      Force reinstall even if packages are already installed"
+                echo "  -f, --fips           Build FIPS version of wolfSSL"
                 echo "  -h, --help          Show this help message"
                 echo ""
                 echo "Arguments:"
@@ -223,6 +280,7 @@ main() {
                 echo "  $0 --debug                 # Build master with debug enabled"
                 echo "  $0 --debug --tag v5.6.4    # Build tag v5.6.4 with debug enabled"
                 echo "  $0 --reinstall             # Force reinstall even if packages exist"
+                echo "  $0 --fips                  # Build FIPS version of wolfSSL cant have tag we build 5.8.2 only"
                 exit 0
                 ;;
             -t|--tag)
@@ -235,6 +293,14 @@ main() {
                 ;;
             -r|--reinstall)
                 reinstall_mode="true"
+                shift
+                ;;
+            -f|--fips)
+                fips_mode="fips"
+                if [ -n "$git_tag" ]; then
+                    echo "FIPS mode cannot have a tag we build 5.8.2 only"
+                    exit 1
+                fi
                 shift
                 ;;
             -*)
@@ -273,7 +339,7 @@ main() {
         echo "Building wolfSSL master branch"
     fi
 
-    install_wolfssl_from_git "$work_dir" "$git_tag" "$debug_mode" "$reinstall_mode"
+    install_wolfssl_from_git "$work_dir" "$git_tag" "$debug_mode" "$reinstall_mode" "$fips_mode"
 
     echo "WolfSSL installation completed successfully"
 }

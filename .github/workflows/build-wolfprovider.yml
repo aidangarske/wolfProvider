@@ -51,7 +51,14 @@ jobs:
             dh-exec \
             equivs \
             expect \
-            xxd
+            xxd \
+            autoconf \
+            automake \
+            quilt \
+            patch \
+            python3 \
+            file \
+            gdebi-core
 
       - name: Checkout wolfProvider
         uses: actions/checkout@v4
