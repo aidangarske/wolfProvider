@@ -217,35 +217,22 @@ jobs:
 
       - name: Organize packages into directories
         run: |
-          echo "Organizing packages by type..."
-          
           # Create package directories
           mkdir -p ${{ env.WOLFSSL_PACKAGES_PATH }}
           mkdir -p ${{ env.OPENSSL_PACKAGES_PATH }}
           mkdir -p ${{ env.WOLFPROV_PACKAGES_PATH }}
 
-          # Copy wolfSSL packages (libwolfssl*)
-          echo "Organizing wolfSSL packages..."
+          echo "Organizing packages..."
           cp ./downloaded-packages/libwolfssl* ${{ env.WOLFSSL_PACKAGES_PATH }}/ 2>/dev/null || echo "No wolfSSL packages found"
-
-          # Copy OpenSSL packages (openssl*, libssl*)
-          echo "Organizing OpenSSL packages..."
           cp ./downloaded-packages/openssl* ${{ env.OPENSSL_PACKAGES_PATH }}/ 2>/dev/null || true
           cp ./downloaded-packages/libssl* ${{ env.OPENSSL_PACKAGES_PATH }}/ 2>/dev/null || true
-
-          # Copy wolfProvider packages (libwolfprov*)
-          echo "Organizing wolfProvider packages..."
           cp ./downloaded-packages/libwolfprov* ${{ env.WOLFPROV_PACKAGES_PATH }}/ 2>/dev/null || true
 
-          echo ""
           echo "Package organization complete!"
-          echo ""
           echo "wolfSSL packages:"
           ls -lh ${{ env.WOLFSSL_PACKAGES_PATH }} 2>/dev/null || echo "  (none)"
-          echo ""
           echo "OpenSSL packages:"
           ls -lh ${{ env.OPENSSL_PACKAGES_PATH }} 2>/dev/null || echo "  (none)"
-          echo ""
           echo "wolfProvider packages:"
           ls -lh ${{ env.WOLFPROV_PACKAGES_PATH }} 2>/dev/null || echo "  (none)"
 
