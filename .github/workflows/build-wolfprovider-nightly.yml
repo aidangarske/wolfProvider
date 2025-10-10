@@ -1,0 +1,46 @@
+name: Nightly Build wolfProvider
+
+on:
+  schedule:
+    # Jenkins: 2AM UTC nightly - Actual nightly build
+    # GitHub Actions: 3AM UTC nightly - Update build in github
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+    inputs:
+      wolfssl_ref:
+        description: 'wolfSSL ref (tag/branch)'
+        required: false
+        default: 'v5.8.2-stable'
+      openssl_ref:
+        description: 'OpenSSL ref (tag/branch)'
+        required: false
+        default: 'openssl-3.5.2'
+      fips_ref:
+        description: 'Build type'
+        required: false
+        default: 'both'
+        type: choice
+        options:
+          - 'both'
+          - 'FIPS'
+          - 'non-FIPS'
+      replace_default:
+        description: 'Replace default provider'
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  build_matrix:
+    uses: ./.github/workflows/build-wolfprovider.yml
+    strategy:
+      matrix:
+        # When manually triggered with 'both', or on schedule, build both FIPS and non-FIPS
+        # When manually triggered with specific type, only build that type
+        fips_ref: ${{ (github.event_name == 'schedule' || inputs.fips_ref == 'both') && fromJSON('["FIPS", "non-FIPS"]') || fromJSON(format('["{0}"]', inputs.fips_ref || 'non-FIPS')) }}
+    with:
+      wolfssl_ref: ${{ inputs.wolfssl_ref || 'v5.8.2-stable' }}
+      openssl_ref: ${{ inputs.openssl_ref || 'openssl-3.5.2' }}
+      fips_ref: ${{ matrix.fips_ref }}
+      replace_default: ${{ inputs.replace_default || false }}
+    secrets: inherit
