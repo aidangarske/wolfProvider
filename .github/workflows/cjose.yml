@@ -48,8 +48,8 @@ jobs:
         uses: dawidd6/action-download-artifact@v6
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          workflow: build-wolfprovider-nightly.yml
-          branch: main
+          workflow: build-wolfprovider.yml
+          branch: build-wolfprov-debian-test
           name: debian-packages-${{ matrix.fips_ref }}${{ matrix.replace_default && '-replace-default' || '' }}
           path: /tmp/packages
 
