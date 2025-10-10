@@ -189,11 +189,11 @@ jobs:
 
           # Determine the pattern to match based on build type
           if [ "$BUILD_TYPE" = "FIPS" ]; then
-            PATTERN="fips"
-            FILTER_PATTERN="contains(\"fips\")"
+            # For FIPS: match files with "-fips" or ".fips." but NOT "nonfips"
+            FILTER_PATTERN="contains(\"fips\") and (contains(\"nonfips\") | not)"
           else
-            PATTERN="nonfips"
-            FILTER_PATTERN="(contains(\"fips\") | not)"
+            # For non-FIPS: match files with "nonfips" OR files without "fips" at all
+            FILTER_PATTERN="contains(\"nonfips\") or (contains(\"fips\") | not)"
           fi
 
           # Get all package files for this build type
