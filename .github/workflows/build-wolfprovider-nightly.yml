@@ -41,7 +41,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build_matrix:
+  build_wolfprovider:
+    name: Build wolfProvider (${{ github.event.inputs.fips_ref }})
     uses: ./.github/workflows/build-wolfprovider.yml
     strategy:
       matrix:
