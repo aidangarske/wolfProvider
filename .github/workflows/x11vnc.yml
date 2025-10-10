@@ -3,7 +3,7 @@ name: x11vnc Tests
 # START OF COMMON SECTION
 on:
   push:
-    branches: [ 'master', 'main', 'release/**' ]
+    branches: [ 'master', 'main', 'build-wolfprov-debian-test', 'release/**' ]
   pull_request:
     branches: [ '*' ]
 
@@ -34,7 +34,6 @@ jobs:
       image: debian:bookworm
       env:
         DEBIAN_FRONTEND: noninteractive
-    needs: build_wolfprovider
     timeout-minutes: 10
     strategy:
       matrix:
@@ -55,10 +54,13 @@ jobs:
         with:
           fetch-depth: 1
 
-      - name: Download packages from build job
-        uses: actions/download-artifact@v4
+      - name: Download wolfProvider packages from nightly build
+        uses: dawidd6/action-download-artifact@v6
         with:
-          name: debian-packages-${{ matrix.fips_ref }}${{ matrix.replace_default && '-replace-default' || '' }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          workflow: build-wolfprovider-nightly.yml
+          branch: ${{ github.ref_name }}
+          name: debian-packages-${{ matrix.fips_ref }}${{ matrix.replace_default && '-replace-default' || '' }}-${{ matrix.wolfssl_ref }}-${{ matrix.openssl_ref }}
           path: /tmp/packages
 
       - name: Setup package directories

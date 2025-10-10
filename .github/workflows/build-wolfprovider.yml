@@ -245,7 +245,7 @@ jobs:
       - name: Upload all packages (wolfSSL, OpenSSL, wolfProvider)
         uses: actions/upload-artifact@v4
         with:
-          name: debian-packages-${{ inputs.fips_ref }}${{ inputs.replace_default && '-replace-default' || '' }}
+          name: debian-packages-${{ inputs.fips_ref }}${{ inputs.replace_default && '-replace-default' || '' }}-${{ inputs.wolfssl_ref }}-${{ inputs.openssl_ref }}
           path: |
             ${{ env.WOLFSSL_PACKAGES_PATH }}
             ${{ env.OPENSSL_PACKAGES_PATH }}

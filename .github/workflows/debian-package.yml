@@ -13,28 +13,11 @@ concurrency:
 # END OF COMMON SECTION
 
 jobs:
-  build_wolfprovider:
-    uses: ./.github/workflows/build-wolfprovider.yml
-    with:
-      wolfssl_ref: ${{ matrix.wolfssl_ref }}
-      openssl_ref: ${{ matrix.openssl_ref }}
-      fips_ref: ${{ matrix.fips_ref }}
-      replace_default: ${{ matrix.replace_default }}
-    secrets: inherit
-    strategy:
-      matrix: 
-        # Test 5.8.2 since our .deb is based on that version
-        wolfssl_ref: [ 'v5.8.2-stable' ]
-        openssl_ref: [ 'openssl-3.5.2' ]
-        fips_ref: [ 'FIPS', 'non-FIPS' ]
-        replace_default: [ true ]
-
   libwolfprov-standalone:
     # Standalone mode is disabled until we re-enable support for it in the debian build.
     if: false
 
     runs-on: ubuntu-22.04
-    needs: build_wolfprovider
     # Run inside Debian Bookworm to match packaging environment
     container:
       image: debian:bookworm
@@ -58,10 +41,13 @@ jobs:
         with:
           fetch-depth: 1
 
-      - name: Download packages from build job
-        uses: actions/download-artifact@v4
+      - name: Download wolfProvider packages from nightly build
+        uses: dawidd6/action-download-artifact@v6
         with:
-          name: debian-packages-${{ matrix.fips_ref }}${{ matrix.replace_default && '-replace-default' || '' }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          workflow: build-wolfprovider-nightly.yml
+          branch: build-wolfprov-debian-test
+          name: debian-packages-${{ matrix.fips_ref }}${{ matrix.replace_default && '-replace-default' || '' }}-${{ matrix.wolfssl_ref }}-${{ matrix.openssl_ref }}-${{ matrix.wolfssl_ref }}-${{ matrix.openssl_ref }}
           path: /tmp/packages
 
       - name: Setup package directories
@@ -174,7 +160,6 @@ jobs:
 
   libwolfprov-with-openssl:
     runs-on: ubuntu-22.04
-    needs: build_wolfprovider
     # Run inside Debian Bookworm to match packaging environment
     container:
       image: debian:bookworm
@@ -193,10 +178,13 @@ jobs:
       OPENSSL_PACKAGES_PATH: /tmp/openssl-packages
       WOLFPROV_PACKAGES_PATH: /tmp/wolfprov-packages
     steps:
-      - name: Download packages from build job
-        uses: actions/download-artifact@v4
+      - name: Download wolfProvider packages from nightly build
+        uses: dawidd6/action-download-artifact@v6
         with:
-          name: debian-packages-${{ matrix.fips_ref }}${{ matrix.replace_default && '-replace-default' || '' }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          workflow: build-wolfprovider-nightly.yml
+          branch: build-wolfprov-debian-test
+          name: debian-packages-${{ matrix.fips_ref }}${{ matrix.replace_default && '-replace-default' || '' }}-${{ matrix.wolfssl_ref }}-${{ matrix.openssl_ref }}-${{ matrix.wolfssl_ref }}-${{ matrix.openssl_ref }}
           path: /tmp/packages
 
       - name: Setup package directories
@@ -229,7 +217,7 @@ jobs:
         run: |
           echo "Testing OpenSSL providers before wolfprov installation..."
           echo "Expected: This should work normally with default providers"
-          
+
           # Test openssl list -providers
           if openssl list -providers; then
             echo "SUCCESS: openssl list -providers works before wolfprov installation"
@@ -237,7 +225,7 @@ jobs:
             echo "FAILURE: openssl list -providers failed before wolfprov installation"
             exit 1
           fi
-          
+
           echo "Provider list before wolfprov installation:"
           openssl list -providers
 
@@ -258,7 +246,7 @@ jobs:
       - name: Verify wolfprov configuration
         run: |
           echo "Verifying wolfprov configuration..."
-          
+
           # Check if configuration file exists
           if [ -f /usr/lib/ssl/openssl.cnf.d/wolfprovider.conf ]; then
             echo "SUCCESS: wolfprovider.conf exists"
@@ -266,7 +254,7 @@ jobs:
           else
             echo "WARNING: wolfprovider.conf not found"
           fi
-          
+
           # Check if library file exists
           if [ -f /usr/lib/*/ossl-modules/libwolfprov.so ]; then
             echo "SUCCESS: libwolfprov.so exists"
@@ -305,10 +293,10 @@ jobs:
       - name: Cleanup test environment
         run: |
           echo "Cleaning up test environment..."
-          
+
           # Uninstall test packages
           apt-get remove --purge -y libwolfprov || true
           apt-get autoremove -y
-          
+
           echo "Cleanup completed"
 

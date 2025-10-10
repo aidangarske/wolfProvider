@@ -1,7 +1,7 @@
 name: rsync Tests
 on:
   push:
-    branches: [ 'master', 'main', 'release/**' ]
+    branches: [ 'master', 'main', 'build-wolfprov-debian-test', 'release/**' ]
   pull_request:
     branches: [ '*' ]
 
@@ -10,24 +10,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build_wolfprovider:
-    uses: ./.github/workflows/build-wolfprovider.yml
-    with:
-      wolfssl_ref: ${{ matrix.wolfssl_ref }}
-      openssl_ref: ${{ matrix.openssl_ref }}
-      fips_ref: ${{ matrix.fips_ref }}
-      replace_default: ${{ matrix.replace_default }}
-    secrets: inherit
-    strategy:
-      matrix:
-        wolfssl_ref: [ 'v5.8.2-stable' ]
-        openssl_ref: [ 'openssl-3.5.2' ]
-        fips_ref: [ 'FIPS', 'non-FIPS' ]
-        replace_default: [ true ]
-
   test_rsync:
     runs-on: ubuntu-22.04
-    needs: build_wolfprovider
     timeout-minutes: 15
     container:
       image: debian:bookworm
@@ -51,10 +35,13 @@ jobs:
         with:
           fetch-depth: 1
 
-      - name: Download packages from build job
-        uses: actions/download-artifact@v4
+      - name: Download wolfProvider packages from nightly build
+        uses: dawidd6/action-download-artifact@v6
         with:
-          name: debian-packages-${{ matrix.fips_ref }}${{ matrix.replace_default && '-replace-default' || '' }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          workflow: build-wolfprovider-nightly.yml
+          branch: ${{ github.ref_name }}
+          name: debian-packages-${{ matrix.fips_ref }}${{ matrix.replace_default && '-replace-default' || '' }}-${{ matrix.wolfssl_ref }}-${{ matrix.openssl_ref }}
           path: /tmp/packages
 
       - name: Setup package directories
