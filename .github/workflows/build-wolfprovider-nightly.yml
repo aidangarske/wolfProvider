@@ -33,7 +33,7 @@ on:
       replace_default:
         description: 'Replace default provider'
         required: false
-        default: false
+        default: true
         type: boolean
 
 concurrency:
@@ -52,5 +52,5 @@ jobs:
       wolfssl_ref: ${{ github.event.inputs.wolfssl_ref || 'v5.8.2-stable' }}
       openssl_ref: ${{ github.event.inputs.openssl_ref || 'openssl-3.5.2' }}
       fips_ref: ${{ matrix.fips_ref }}
-      replace_default: ${{ github.event.inputs.replace_default == 'true' }}
+      replace_default: ${{ github.event.inputs.replace_default != 'false' }}
     secrets: inherit
