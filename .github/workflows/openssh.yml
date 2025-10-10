@@ -119,9 +119,9 @@ jobs:
           path: osp
           fetch-depth: 1
       - run: |
-          # Apply the patch for the correct version of OpenSSH
+          # Apply patch for FIPS both versions
           cd openssh-portable
-          patch -p1 < $GITHUB_WORKSPACE/osp/wolfProvider/openssh/openssh-${{ matrix.openssh_ref }}-wolfprov.patch
+          patch -p1 < $GITHUB_WORKSPACE/osp/wolfProvider/openssh/openssh-FIPS-wolfprov.patch
 
       - name: Build and Test openssh-portable
         working-directory: openssh-portable

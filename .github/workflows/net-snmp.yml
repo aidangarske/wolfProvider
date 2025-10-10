@@ -84,19 +84,33 @@ jobs:
           apt-get update
           apt-get install -y libperl-dev build-essential autoconf \
             libtool pkg-config gettext net-tools
-
-      - name: Build net-snmp with wolfProvider
-        uses: wolfSSL/actions-build-autotools-project@v1
+        
+      - name: Checkout net-snmp
+        uses: actions/checkout@v4
         with:
           repository: net-snmp/net-snmp
           ref: ${{ matrix.net_snmp_ref }}
           path: net-snmp
-          configure: >-
-            --disable-shared
-            --with-default-snmp-version="3" --with-sys-contact="@@no.where"
-            --with-sys-location="Unknown" --with-logfile="/var/log/snmpd.log"
+          fetch-depth: 1
+
+      - name: Checkout OSP
+        uses: actions/checkout@v4
+        with:
+          repository: wolfssl/osp
+          path: osp
+          fetch-depth: 1
+      - run: |
+          cd net-snmp
+          patch -p1 < $GITHUB_WORKSPACE/osp/wolfProvider/net-snmp/net-snmp-FIPS-${{ matrix.net_snmp_ref }}-wolfprov.patch
+
+      - name: Build net-snmp with wolfProvider
+        run: |
+          autoreconf -ivf
+          ./configure --disable-shared \
+            --with-default-snmp-version="3" --with-sys-contact="@@no.where" \
+            --with-sys-location="Unknown" --with-logfile="/var/log/snmpd.log" \
             --with-persistent-directory="/var/net-snmp"
-          check: false
+          make -j$(nproc)
 
       - name: Run tests
         working-directory: net-snmp

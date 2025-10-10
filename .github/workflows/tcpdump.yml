@@ -107,6 +107,16 @@ jobs:
           path: tcpdump_repo
           ref: ${{ matrix.tcpdump_ref }}
 
+      - name: Checkout OSP
+        uses: actions/checkout@v4
+        with:
+          repository: wolfssl/osp
+          path: osp
+          fetch-depth: 1
+      - run: |
+          cd tcpdump_repo
+          patch -p1 < $GITHUB_WORKSPACE/osp/wolfProvider/tcpdump/tcpdump-FIPS-${{ matrix.tcpdump_ref }}-wolfprov.patch
+
       - name: Build and install tcpdump
         working-directory: tcpdump_repo
         run: |

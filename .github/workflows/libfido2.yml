@@ -87,6 +87,17 @@ jobs:
           ref: ${{ matrix.libfido2_ref }}
           fetch-depth: 1
 
+      - name: Checkout OSP
+        uses: actions/checkout@v4
+        with:
+          repository: wolfssl/osp
+          path: osp
+          fetch-depth: 1
+      - run: |
+          cd libfido2_repo
+          # Apply the wolfProvider patch
+          patch -p1 < $GITHUB_WORKSPACE/osp/wolfProvider/libfido2/libfido2-FIPS-${{ matrix.libfido2_ref }}-wolfprov.patch
+
       - name: Build and install libfido2
         working-directory: libfido2_repo
         run: |

@@ -13,21 +13,6 @@ concurrency:
 # END OF COMMON SECTION
 
 jobs:
-  build_wolfprovider:
-    uses: ./.github/workflows/build-wolfprovider.yml
-    with:
-      wolfssl_ref: ${{ matrix.wolfssl_ref }}
-      openssl_ref: ${{ matrix.openssl_ref }}
-      fips_ref: ${{ matrix.fips_ref }}
-      replace_default: ${{ matrix.replace_default }}
-    secrets: inherit
-    strategy:
-      matrix:
-        wolfssl_ref: [ 'v5.8.2-stable' ]
-        openssl_ref: [ 'openssl-3.5.2' ]
-        fips_ref: [ 'FIPS', 'non-FIPS' ]
-        replace_default: [ true ]
-
   test_python3-ntp:
     runs-on: ubuntu-22.04
     # This should be a safe limit for the tests to run.
@@ -121,7 +106,7 @@ jobs:
           fetch-depth: 1
       - run: |
           cd ntpsec
-          patch -p1 < $GITHUB_WORKSPACE/osp/wolfProvider/python3-ntp/python3-ntp-${{ matrix.python3-ntp_ref }}-wolfprov.patch
+          patch -p1 < $GITHUB_WORKSPACE/osp/wolfProvider/python3-ntp/python3-ntp-FIPS-${{ matrix.python3-ntp_ref }}-wolfprov.patch
 
       - name: Build ntpsec
         working-directory: ntpsec
