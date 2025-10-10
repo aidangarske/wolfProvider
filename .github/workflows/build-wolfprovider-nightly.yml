@@ -2,7 +2,9 @@ name: Nightly Build wolfProvider
 
 on:
   push:
-    branches: [ 'master', 'main', 'release/**' ]
+    branches: [ 'master', 'main', 'build-wolfprov-debian-test', 'release/**' ]
+  pull_request:
+    branches: [ '*' ]
   schedule:
     # Jenkins: 2AM UTC nightly - Actual nightly build
     # GitHub Actions: 3AM UTC nightly - Update build in github
