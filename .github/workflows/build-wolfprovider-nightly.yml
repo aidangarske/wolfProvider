@@ -42,7 +42,7 @@ concurrency:
 
 jobs:
   build_wolfprovider:
-    name: Build wolfProvider (${{ github.event.inputs.fips_ref }})
+    name: Build wolfProvider
     uses: ./.github/workflows/build-wolfprovider.yml
     strategy:
       matrix:
