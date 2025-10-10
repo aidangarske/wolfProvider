@@ -107,7 +107,11 @@ jobs:
           fetch-depth: 1
       - run: |
           cd ppp_repo
-          patch -p1 < $GITHUB_WORKSPACE/osp/wolfProvider/ppp/ppp-FIPS-${{ matrix.ppp_ref }}-wolfprov.patch
+          if [ ${{ matrix.fips_ref == 'FIPS' }} ]; then
+            patch -p1 < $GITHUB_WORKSPACE/osp/wolfProvider/ppp/ppp-FIPS-${{ matrix.ppp_ref }}-wolfprov.patch
+          else
+            patch -p1 < $GITHUB_WORKSPACE/osp/wolfProvider/ppp/ppp-${{ matrix.ppp_ref }}-wolfprov.patch
+          fi
 
       - name: Build and install PPP
         working-directory: ppp_repo
@@ -117,7 +121,11 @@ jobs:
           elif [ ! -f ./configure ]; then
             autoreconf -fiv
           fi
-          ./configure --prefix=$GITHUB_WORKSPACE/ppp-install --disable-microsoft-extensions
+          if [ ${{ matrix.fips_ref == 'FIPS' }} ]; then
+            ./configure --prefix=$GITHUB_WORKSPACE/ppp-install --disable-microsoft-extensions --enable-wolfprov-fips
+          else
+            ./configure --prefix=$GITHUB_WORKSPACE/ppp-install --disable-microsoft-extensions
+          fi
           make -j$(nproc)
           make install
 
