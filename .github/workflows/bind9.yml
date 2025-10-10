@@ -46,7 +46,7 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           workflow: build-wolfprovider-nightly.yml
           branch: ${{ github.ref_name }}
-          name: debian-packages-${{ matrix.fips_ref }}${{ matrix.replace_default && '-replace-default' || '' }}-${{ matrix.wolfssl_ref }}-${{ matrix.openssl_ref }}-${{ matrix.wolfssl_ref }}-${{ matrix.openssl_ref }}
+          name: debian-packages-${{ matrix.fips_ref }}${{ matrix.replace_default && '-replace-default' || '' }}-${{ matrix.wolfssl_ref }}-${{ matrix.openssl_ref }}
           path: /tmp/packages
 
       - name: Setup package directories
