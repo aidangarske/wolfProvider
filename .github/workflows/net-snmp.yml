@@ -110,14 +110,14 @@ jobs:
       - name: Build net-snmp with wolfProvider
         run: |
           autoreconf -ivf
-          if [ ${{ matrix.fips_ref == 'FIPS' }} ]; then
+          if [ "${{ matrix.fips_ref }}" = "FIPS" ]; then
             ./configure --enable-wolfprov-fips \
               --disable-shared  \
               --with-default-snmp-version="3" \
               --with-sys-contact="@@no.where" \
               --with-sys-location="Unknown" \
               --with-logfile="$SNMP_LOGFILE" \
-              --with-persistent-directory="$SNMP_PERSISTENT_DIR" \
+              --with-persistent-directory="$SNMP_PERSISTENT_DIR"
           else
             ./configure --disable-shared \
               --with-default-snmp-version="3" --with-sys-contact="@@no.where" \
