@@ -108,6 +108,7 @@ jobs:
           fi
 
       - name: Build net-snmp with wolfProvider
+        working-directory: net-snmp
         run: |
           autoreconf -ivf
           if [ "${{ matrix.fips_ref }}" = "FIPS" ]; then
