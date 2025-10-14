@@ -28,7 +28,7 @@ jobs:
         openssl_ref: [ 'openssl-3.5.2' ]
         fips_ref: [ 'FIPS', 'non-FIPS' ]
         replace_default: [ true ]
-        use_cached_packages: [ false ]
+        use_cached_packages: [ 'true', 'false' ]
 
   test_cjose:
     runs-on: ubuntu-22.04
@@ -49,6 +49,7 @@ jobs:
         fips_ref: [ 'FIPS', 'non-FIPS' ]
         force_fail: [ 'WOLFPROV_FORCE_FAIL=1', '' ]
         replace_default: [ true ]
+        use_cached_packages: [ 'true', 'false' ]
     env:
       WOLFSSL_PACKAGES_PATH: /tmp/wolfssl-packages
       OPENSSL_PACKAGES_PATH: /tmp/openssl-packages
@@ -68,7 +69,7 @@ jobs:
       - name: Download packages from build job
         uses: actions/download-artifact@v4
         with:
-          name: debian-packages-${{ matrix.fips_ref }}${{ matrix.replace_default && '-replace-default' || '' }}-${{ matrix.wolfssl_ref }}-${{ matrix.openssl_ref }}
+          name: debian-packages-${{ matrix.fips_ref }}${{ matrix.replace_default && '-replace-default' || '' }}-${{ matrix.wolfssl_ref }}-${{ matrix.openssl_ref }}-${{ matrix.use_cached_packages }}
           path: /tmp/packages
 
       - name: Setup package directories
