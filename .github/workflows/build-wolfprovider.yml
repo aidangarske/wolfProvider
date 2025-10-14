@@ -16,6 +16,10 @@ on:
         required: false
         type: boolean
         default: false
+      use_cached_packages:
+        required: false
+        type: boolean
+        default: true
 
 jobs:
   build_wolfprovider:
@@ -67,6 +71,7 @@ jobs:
 
       # Step 1: Trigger Jenkins and download wolfSSL packages
       - name: Trigger Jenkins build
+        if: inputs.use_cached_packages == false
         id: trigger
         shell: bash
         run: |
@@ -194,6 +199,7 @@ jobs:
           done
 
       - name: Download .deb files from Jenkins
+        if: inputs.use_cached_packages == false
         shell: bash
         run: |
           echo "Downloading .deb files from Jenkins build..."
@@ -262,6 +268,7 @@ jobs:
           ls -lh nonfips-packages/ 2>/dev/null || echo "  No Non-FIPS packages found"
 
       - name: Setup wolfSSL packages from Jenkins
+        if: inputs.use_cached_packages == false
         run: |
           mkdir -p ${{ env.WOLFSSL_PACKAGES_PATH }}
 
@@ -287,7 +294,40 @@ jobs:
           echo "Jenkins wolfSSL packages available:"
           ls -la ${{ env.WOLFSSL_PACKAGES_PATH }}
 
-      - name: Install wolfSSL packages from Jenkins
+      # Download pre-built wolfSSL packages from nightly workflow artifacts
+      - name: Download wolfSSL packages from nightly build artifacts
+        if: inputs.use_cached_packages == true
+        uses: dawidd6/action-download-artifact@v6
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          workflow: build-wolfprovider-nightly.yml
+          branch: ${{ github.ref_name }}
+          name: debian-packages-${{ inputs.fips_ref }}${{ inputs.replace_default && '-replace-default' || '' }}-${{ inputs.wolfssl_ref }}-${{ inputs.openssl_ref }}
+          path: /tmp/nightly-packages
+
+      - name: Setup wolfSSL packages from nightly build artifacts
+        if: inputs.use_cached_packages == true
+        run: |
+          # Copy wolfSSL packages from nightly artifacts
+          echo "Setting up packages from nightly build..."
+          
+          # The artifact contains the full directory structure
+          # Check if packages exist in the expected location
+          if [ -d "/tmp/nightly-packages/tmp/wolfssl-packages" ]; then
+            echo "Found wolfSSL packages in nightly artifacts"
+            mkdir -p ${{ env.WOLFSSL_PACKAGES_PATH }}
+            cp /tmp/nightly-packages/tmp/wolfssl-packages/*.deb ${{ env.WOLFSSL_PACKAGES_PATH }}/
+          else
+            echo "ERROR: No wolfSSL packages found in nightly artifacts"
+            echo "Available structure:"
+            ls -laR /tmp/nightly-packages/ || true
+            exit 1
+          fi
+          
+          echo "Nightly wolfSSL packages available:"
+          ls -la ${{ env.WOLFSSL_PACKAGES_PATH }}
+
+      - name: Install wolfSSL packages
         run: |
           echo "Installing wolfSSL packages (${{ inputs.fips_ref }})..."
 
@@ -345,7 +385,7 @@ jobs:
       - name: Upload wolfProvider packages
         uses: actions/upload-artifact@v4
         with:
-          name: debian-packages-${{ inputs.fips_ref }}${{ inputs.replace_default && '-replace-default' || '' }}
+          name: debian-packages-${{ inputs.fips_ref }}${{ inputs.replace_default && '-replace-default' || '' }}-${{ inputs.wolfssl_ref }}-${{ inputs.openssl_ref }}
           path: |
             ${{ env.WOLFSSL_PACKAGES_PATH }}
             ${{ env.OPENSSL_PACKAGES_PATH }}
