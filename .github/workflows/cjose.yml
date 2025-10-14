@@ -70,22 +70,26 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: debian-packages-${{ matrix.fips_ref }}${{ matrix.replace_default && '-replace-default' || '' }}-${{ matrix.wolfssl_ref }}-${{ matrix.openssl_ref }}
-          path: /tmp/artifacts
+          path: /tmp/packages
 
-      - name: Debug - Check artifact structure
+      - name: Setup package directories
         run: |
-          echo "Artifact contents:"
-          ls -laR /tmp/artifacts/
-          
-      - name: Move packages to correct location
-        run: |
-          # Move packages from downloaded location to expected location
-          mv /tmp/artifacts/tmp/wolfssl-packages ${{ env.WOLFSSL_PACKAGES_PATH }}
-          mv /tmp/artifacts/tmp/openssl-packages ${{ env.OPENSSL_PACKAGES_PATH }}
-          mv /tmp/artifacts/tmp/wolfprov-packages ${{ env.WOLFPROV_PACKAGES_PATH }}
+          # The artifact preserves the full path structure
+          echo "Artifact structure:"
+          ls -laR /tmp/packages/
 
-      - name: Verify packages are ready
-        run: |
+          # Move packages to expected locations (artifact includes /tmp/ prefix)
+          if [ -d "/tmp/packages/tmp/wolfssl-packages" ]; then
+            mv /tmp/packages/tmp/wolfssl-packages ${{ env.WOLFSSL_PACKAGES_PATH }}
+            mv /tmp/packages/tmp/openssl-packages ${{ env.OPENSSL_PACKAGES_PATH }}
+            mv /tmp/packages/tmp/wolfprov-packages ${{ env.WOLFPROV_PACKAGES_PATH }}
+          else
+            # Fallback for different structure
+            mv /tmp/packages/wolfssl-packages ${{ env.WOLFSSL_PACKAGES_PATH }}
+            mv /tmp/packages/openssl-packages ${{ env.OPENSSL_PACKAGES_PATH }}
+            mv /tmp/packages/wolfprov-packages ${{ env.WOLFPROV_PACKAGES_PATH }}
+          fi
+
           echo "Packages ready:"
           ls -la ${{ env.WOLFSSL_PACKAGES_PATH }}
           ls -la ${{ env.OPENSSL_PACKAGES_PATH }}
