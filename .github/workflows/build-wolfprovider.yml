@@ -300,7 +300,7 @@ jobs:
         uses: dawidd6/action-download-artifact@v6
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          workflow: build-wolfprovider-nightly.yml
+          workflow: build-wolfprovider.yml
           branch: ${{ github.ref_name }}
           name: debian-packages-${{ inputs.fips_ref }}${{ inputs.replace_default && '-replace-default' || '' }}-${{ inputs.wolfssl_ref }}-${{ inputs.openssl_ref }}
           path: /tmp/nightly-packages
