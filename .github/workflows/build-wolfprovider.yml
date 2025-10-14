@@ -310,7 +310,7 @@ jobs:
         run: |
           # Copy wolfSSL packages from nightly artifacts
           echo "Setting up packages from nightly build..."
-          
+
           # The artifact contains the full directory structure
           # Check if packages exist in the expected location
           if [ -d "/tmp/nightly-packages/tmp/wolfssl-packages" ]; then
@@ -323,7 +323,7 @@ jobs:
             ls -laR /tmp/nightly-packages/ || true
             exit 1
           fi
-          
+
           echo "Nightly wolfSSL packages available:"
           ls -la ${{ env.WOLFSSL_PACKAGES_PATH }}
 
