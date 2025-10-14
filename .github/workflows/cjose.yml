@@ -28,7 +28,7 @@ jobs:
         openssl_ref: [ 'openssl-3.5.2' ]
         fips_ref: [ 'FIPS', 'non-FIPS' ]
         replace_default: [ true ]
-        use_cached_packages: [ false ]
+        use_cached_packages: [ true ]
 
   test_cjose:
     runs-on: ubuntu-22.04
@@ -49,7 +49,7 @@ jobs:
         fips_ref: [ 'FIPS', 'non-FIPS' ]
         force_fail: [ 'WOLFPROV_FORCE_FAIL=1', '' ]
         replace_default: [ true ]
-        use_cached_packages: [ false ]
+        use_cached_packages: [ true ]
     env:
       WOLFSSL_PACKAGES_PATH: /tmp/wolfssl-packages
       OPENSSL_PACKAGES_PATH: /tmp/openssl-packages
