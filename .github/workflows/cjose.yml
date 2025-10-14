@@ -70,7 +70,19 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: debian-packages-${{ matrix.fips_ref }}${{ matrix.replace_default && '-replace-default' || '' }}-${{ matrix.wolfssl_ref }}-${{ matrix.openssl_ref }}
-          path: /
+          path: /tmp/artifacts
+
+      - name: Debug - Check artifact structure
+        run: |
+          echo "Artifact contents:"
+          ls -laR /tmp/artifacts/
+          
+      - name: Move packages to correct location
+        run: |
+          # Move packages from downloaded location to expected location
+          mv /tmp/artifacts/tmp/wolfssl-packages ${{ env.WOLFSSL_PACKAGES_PATH }}
+          mv /tmp/artifacts/tmp/openssl-packages ${{ env.OPENSSL_PACKAGES_PATH }}
+          mv /tmp/artifacts/tmp/wolfprov-packages ${{ env.WOLFPROV_PACKAGES_PATH }}
 
       - name: Verify packages are ready
         run: |
