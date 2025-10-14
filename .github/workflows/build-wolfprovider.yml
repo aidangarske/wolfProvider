@@ -294,37 +294,34 @@ jobs:
           echo "Jenkins wolfSSL packages available:"
           ls -la ${{ env.WOLFSSL_PACKAGES_PATH }}
 
-      # Download pre-built wolfSSL packages from nightly workflow artifacts
-      - name: Download wolfSSL packages from nightly build artifacts
+      # Download pre-built wolfSSL packages from current workflow run artifacts
+      - name: Download wolfSSL packages from workflow artifacts
         if: inputs.use_cached_packages == true
-        uses: dawidd6/action-download-artifact@v6
+        uses: actions/download-artifact@v4
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          workflow: build-wolfprovider.yml
-          branch: ${{ github.ref_name }}
           name: debian-packages-${{ inputs.fips_ref }}${{ inputs.replace_default && '-replace-default' || '' }}-${{ inputs.wolfssl_ref }}-${{ inputs.openssl_ref }}
-          path: /tmp/nightly-packages
+          path: /tmp/packages
 
-      - name: Setup wolfSSL packages from nightly build artifacts
+      - name: Setup wolfSSL packages from workflow artifacts
         if: inputs.use_cached_packages == true
         run: |
-          # Copy wolfSSL packages from nightly artifacts
-          echo "Setting up packages from nightly build..."
-
+          # Copy wolfSSL packages from workflow artifacts
+          echo "Setting up packages from workflow artifacts..."
+          
           # The artifact contains the full directory structure
-          # Check if packages exist in the expected location
-          if [ -d "/tmp/nightly-packages/tmp/wolfssl-packages" ]; then
-            echo "Found wolfSSL packages in nightly artifacts"
-            mkdir -p ${{ env.WOLFSSL_PACKAGES_PATH }}
-            cp /tmp/nightly-packages/tmp/wolfssl-packages/*.deb ${{ env.WOLFSSL_PACKAGES_PATH }}/
+          echo "Artifact structure:"
+          ls -laR /tmp/packages/
+          
+          # Move packages to expected location
+          if [ -d "/tmp/packages/tmp/wolfssl-packages" ]; then
+            echo "Found wolfSSL packages in artifacts"
+            mv /tmp/packages/tmp/wolfssl-packages ${{ env.WOLFSSL_PACKAGES_PATH }}
           else
-            echo "ERROR: No wolfSSL packages found in nightly artifacts"
-            echo "Available structure:"
-            ls -laR /tmp/nightly-packages/ || true
+            echo "ERROR: No wolfSSL packages found in artifacts"
             exit 1
           fi
-
-          echo "Nightly wolfSSL packages available:"
+          
+          echo "Workflow artifacts wolfSSL packages available:"
           ls -la ${{ env.WOLFSSL_PACKAGES_PATH }}
 
       - name: Install wolfSSL packages
