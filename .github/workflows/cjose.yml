@@ -109,8 +109,9 @@ jobs:
             ${{ env.OPENSSL_PACKAGES_PATH }}/libssl3_*.deb \
             ${{ env.OPENSSL_PACKAGES_PATH }}/libssl-dev_*.deb
 
+          # Only install libwolfprov packages (exclude wolfssl and openssl)
           apt install --reinstall -y \
-            ${{ env.WOLFPROV_PACKAGES_PATH }}/*.deb
+            ${{ env.WOLFPROV_PACKAGES_PATH }}/libwolfprov*.deb
 
       - name: Verify wolfProvider is properly installed
         run: |
