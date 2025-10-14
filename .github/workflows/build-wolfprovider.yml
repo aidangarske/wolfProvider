@@ -55,7 +55,7 @@ jobs:
             equivs \
             expect \
             xxd \
-            libdistro-info-perl
+            libdistro-info-perl \
             autoconf \
             automake \
             quilt \
