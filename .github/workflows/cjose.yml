@@ -20,7 +20,6 @@ jobs:
       openssl_ref: ${{ matrix.openssl_ref }}
       fips_ref: ${{ matrix.fips_ref }}
       replace_default: ${{ matrix.replace_default }}
-      use_cached_packages: ${{ matrix.use_cached_packages }}
     secrets: inherit
     strategy:
       matrix:
@@ -28,7 +27,6 @@ jobs:
         openssl_ref: [ 'openssl-3.5.2' ]
         fips_ref: [ 'FIPS', 'non-FIPS' ]
         replace_default: [ true ]
-        use_cached_packages: [ true ]
 
   test_cjose:
     runs-on: ubuntu-22.04
@@ -49,7 +47,6 @@ jobs:
         fips_ref: [ 'FIPS', 'non-FIPS' ]
         force_fail: [ 'WOLFPROV_FORCE_FAIL=1', '' ]
         replace_default: [ true ]
-        use_cached_packages: [ true ]
     env:
       WOLFSSL_PACKAGES_PATH: /tmp/wolfssl-packages
       OPENSSL_PACKAGES_PATH: /tmp/openssl-packages
@@ -74,26 +71,9 @@ jobs:
 
       - name: Setup package directories
         run: |
-          # The artifact preserves the full path structure
-          echo "Artifact structure:"
-          ls -laR /tmp/packages/
-
-          # Move packages to expected locations (artifact includes /tmp/ prefix)
-          if [ -d "/tmp/packages/tmp/wolfssl-packages" ]; then
-            mv /tmp/packages/tmp/wolfssl-packages ${{ env.WOLFSSL_PACKAGES_PATH }}
-            mv /tmp/packages/tmp/openssl-packages ${{ env.OPENSSL_PACKAGES_PATH }}
-            mv /tmp/packages/tmp/wolfprov-packages ${{ env.WOLFPROV_PACKAGES_PATH }}
-          else
-            # Fallback for different structure
-            mv /tmp/packages/wolfssl-packages ${{ env.WOLFSSL_PACKAGES_PATH }}
-            mv /tmp/packages/openssl-packages ${{ env.OPENSSL_PACKAGES_PATH }}
-            mv /tmp/packages/wolfprov-packages ${{ env.WOLFPROV_PACKAGES_PATH }}
-          fi
-
-          echo "Packages ready:"
-          ls -la ${{ env.WOLFSSL_PACKAGES_PATH }}
-          ls -la ${{ env.OPENSSL_PACKAGES_PATH }}
-          ls -la ${{ env.WOLFPROV_PACKAGES_PATH }}
+          mv /tmp/packages/wolfssl-packages ${{ env.WOLFSSL_PACKAGES_PATH }}
+          mv /tmp/packages/openssl-packages ${{ env.OPENSSL_PACKAGES_PATH }}
+          mv /tmp/packages/wolfprov-packages ${{ env.WOLFPROV_PACKAGES_PATH }}
 
       - name: Install wolfSSL/OpenSSL/wolfprov packages
         run: |

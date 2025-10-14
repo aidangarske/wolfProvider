@@ -16,10 +16,6 @@ on:
         required: false
         type: boolean
         default: false
-      use_cached_packages:
-        required: false
-        type: boolean
-        default: true
 
 jobs:
   build_wolfprovider:
@@ -71,7 +67,6 @@ jobs:
 
       # Step 1: Trigger Jenkins and download wolfSSL packages
       - name: Trigger Jenkins build
-        if: inputs.use_cached_packages == false
         id: trigger
         shell: bash
         run: |
@@ -199,7 +194,6 @@ jobs:
           done
 
       - name: Download .deb files from Jenkins
-        if: inputs.use_cached_packages == false
         shell: bash
         run: |
           echo "Downloading .deb files from Jenkins build..."
@@ -268,7 +262,6 @@ jobs:
           ls -lh nonfips-packages/ 2>/dev/null || echo "  No Non-FIPS packages found"
 
       - name: Setup wolfSSL packages from Jenkins
-        if: inputs.use_cached_packages == false
         run: |
           mkdir -p ${{ env.WOLFSSL_PACKAGES_PATH }}
 
@@ -292,36 +285,6 @@ jobs:
           fi
 
           echo "Jenkins wolfSSL packages available:"
-          ls -la ${{ env.WOLFSSL_PACKAGES_PATH }}
-
-      # Download pre-built wolfSSL packages from current workflow run artifacts
-      - name: Download wolfSSL packages from workflow artifacts
-        if: inputs.use_cached_packages == true
-        uses: actions/download-artifact@v4
-        with:
-          name: debian-packages-${{ inputs.fips_ref }}${{ inputs.replace_default && '-replace-default' || '' }}-${{ inputs.wolfssl_ref }}-${{ inputs.openssl_ref }}
-          path: /tmp/packages
-
-      - name: Setup wolfSSL packages from workflow artifacts
-        if: inputs.use_cached_packages == true
-        run: |
-          # Copy wolfSSL packages from workflow artifacts
-          echo "Setting up packages from workflow artifacts..."
-          
-          # The artifact contains the full directory structure
-          echo "Artifact structure:"
-          ls -laR /tmp/packages/
-          
-          # Move packages to expected location
-          if [ -d "/tmp/packages/tmp/wolfssl-packages" ]; then
-            echo "Found wolfSSL packages in artifacts"
-            mv /tmp/packages/tmp/wolfssl-packages ${{ env.WOLFSSL_PACKAGES_PATH }}
-          else
-            echo "ERROR: No wolfSSL packages found in artifacts"
-            exit 1
-          fi
-          
-          echo "Workflow artifacts wolfSSL packages available:"
           ls -la ${{ env.WOLFSSL_PACKAGES_PATH }}
 
       - name: Install wolfSSL packages
