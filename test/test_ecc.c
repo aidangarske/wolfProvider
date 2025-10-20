@@ -1264,19 +1264,19 @@ int test_ecdsa_p192(void *data)
     if (err == 0) {
         PRINT_MSG("Sign with OpenSSL");
         ecdsaSigLen = sizeof(ecdsaSig);
-        err = test_digest_sign(pkey, osslLibCtx, buf, sizeof(buf), md,
-                              ecdsaSig, &ecdsaSigLen, 0);
+        err = test_digest_sign(pkey, osslLibCtx, buf, sizeof(buf), md, NULL,
+                              ecdsaSig, &ecdsaSigLen, 0, 0);
     }
     if (err == 0) {
         PRINT_MSG("Verify with wolfprovider");
-        err = test_digest_verify(pkey, wpLibCtx, buf, sizeof(buf), md,
-                                ecdsaSig, ecdsaSigLen, 0);
+        err = test_digest_verify(pkey, wpLibCtx, buf, sizeof(buf), md, NULL,
+                                ecdsaSig, ecdsaSigLen, 0, 0);
     }
     if (err == 0) {
         PRINT_MSG("Verify bad signature with wolfprovider");
         ecdsaSig[1] ^= 0x80;
-        res = test_digest_verify(pkey, wpLibCtx, buf, sizeof(buf), md,
-                                ecdsaSig, ecdsaSigLen, 0);
+        res = test_digest_verify(pkey, wpLibCtx, buf, sizeof(buf), md, NULL,
+                                ecdsaSig, ecdsaSigLen, 0, 0);
         if (res != 1)
             err = 1;
     }
@@ -1285,8 +1285,8 @@ int test_ecdsa_p192(void *data)
     if (err == 0) {
         PRINT_MSG("Sign with wolfprovider");
         ecdsaSigLen = sizeof(ecdsaSig);
-        err = test_digest_sign(pkey, wpLibCtx, buf, sizeof(buf), md,
-                              ecdsaSig, &ecdsaSigLen, 0);
+        err = test_digest_sign(pkey, wpLibCtx, buf, sizeof(buf), md, NULL,
+                              ecdsaSig, &ecdsaSigLen, 0, 0);
 #if defined(HAVE_FIPS) || defined(HAVE_FIPS_VERSION)
         err = err != 1;
         if (err == 0) {
@@ -1301,8 +1301,8 @@ int test_ecdsa_p192(void *data)
     }
     if (err == 0) {
         PRINT_MSG("Verify with OpenSSL");
-        err = test_digest_verify(pkey, osslLibCtx, buf, sizeof(buf), md,
-                                ecdsaSig, ecdsaSigLen, 0);
+        err = test_digest_verify(pkey, osslLibCtx, buf, sizeof(buf), md, NULL,
+                                ecdsaSig, ecdsaSigLen, 0, 0);
     }
 #endif /* HAVE_FIPS || HAVE_FIPS_VERSION */
 
@@ -1338,32 +1338,32 @@ int test_ecdsa_p224(void *data)
     if (err == 0) {
         PRINT_MSG("Sign with OpenSSL");
         ecdsaSigLen = sizeof(ecdsaSig);
-        err = test_digest_sign(pkey, osslLibCtx, buf, sizeof(buf), md,
-                              ecdsaSig, &ecdsaSigLen, 0);
+        err = test_digest_sign(pkey, osslLibCtx, buf, sizeof(buf), md, NULL,
+                              ecdsaSig, &ecdsaSigLen, 0, 0);
     }
     if (err == 0) {
         PRINT_MSG("Verify with wolfprovider");
-        err = test_digest_verify(pkey, wpLibCtx, buf, sizeof(buf), md,
-                                ecdsaSig, ecdsaSigLen, 0);
+        err = test_digest_verify(pkey, wpLibCtx, buf, sizeof(buf), md, NULL,
+                                ecdsaSig, ecdsaSigLen, 0, 0);
     }
     if (err == 0) {
         PRINT_MSG("Verify bad signature with wolfprovider");
         ecdsaSig[1] ^= 0x80;
-        res = test_digest_verify(pkey, wpLibCtx, buf, sizeof(buf), md,
-                                ecdsaSig, ecdsaSigLen, 0);
+        res = test_digest_verify(pkey, wpLibCtx, buf, sizeof(buf), md, NULL,
+                                ecdsaSig, ecdsaSigLen, 0, 0);
         if (res != 1)
             err = 1;
     }
     if (err == 0) {
         PRINT_MSG("Sign with wolfprovider");
         ecdsaSigLen = sizeof(ecdsaSig);
-        err = test_digest_sign(pkey, wpLibCtx, buf, sizeof(buf), md,
-                              ecdsaSig, &ecdsaSigLen, 0);
+        err = test_digest_sign(pkey, wpLibCtx, buf, sizeof(buf), md, NULL,
+                              ecdsaSig, &ecdsaSigLen, 0, 0);
     }
     if (err == 0) {
         PRINT_MSG("Verify with OpenSSL");
-        err = test_digest_verify(pkey, osslLibCtx, buf, sizeof(buf), md,
-                                ecdsaSig, ecdsaSigLen, 0);
+        err = test_digest_verify(pkey, osslLibCtx, buf, sizeof(buf), md, NULL,
+                                ecdsaSig, ecdsaSigLen, 0, 0);
     }
 
     EVP_PKEY_free(pkey);
@@ -1393,32 +1393,32 @@ int test_ecdsa_p256(void *data)
     if (err == 0) {
         PRINT_MSG("Sign with OpenSSL");
         ecdsaSigLen = sizeof(ecdsaSig);
-        err = test_digest_sign(pkey, osslLibCtx, buf, sizeof(buf), "SHA-256",
-                              ecdsaSig, &ecdsaSigLen, 0);
+        err = test_digest_sign(pkey, osslLibCtx, buf, sizeof(buf), "SHA-256", NULL,
+                              ecdsaSig, &ecdsaSigLen, 0, 0);
     }
     if (err == 0) {
         PRINT_MSG("Verify with wolfprovider");
-        err = test_digest_verify(pkey, wpLibCtx, buf, sizeof(buf), "SHA-256",
-                                ecdsaSig, ecdsaSigLen, 0);
+        err = test_digest_verify(pkey, wpLibCtx, buf, sizeof(buf), "SHA-256", NULL,
+                                ecdsaSig, ecdsaSigLen, 0, 0);
     }
     if (err == 0) {
         PRINT_MSG("Verify bad signature with wolfprovider");
         ecdsaSig[1] ^= 0x80;
-        res = test_digest_verify(pkey, wpLibCtx, buf, sizeof(buf), "SHA-256",
-                                ecdsaSig, ecdsaSigLen, 0);
+        res = test_digest_verify(pkey, wpLibCtx, buf, sizeof(buf), "SHA-256", NULL,
+                                ecdsaSig, ecdsaSigLen, 0, 0);
         if (res != 1)
             err = 1;
     }
     if (err == 0) {
         PRINT_MSG("Sign with wolfprovider");
         ecdsaSigLen = sizeof(ecdsaSig);
-        err = test_digest_sign(pkey, wpLibCtx, buf, sizeof(buf), "SHA-256",
-                              ecdsaSig, &ecdsaSigLen, 0);
+        err = test_digest_sign(pkey, wpLibCtx, buf, sizeof(buf), "SHA-256", NULL,
+                              ecdsaSig, &ecdsaSigLen, 0, 0);
     }
     if (err == 0) {
         PRINT_MSG("Verify with OpenSSL");
-        err = test_digest_verify(pkey, osslLibCtx, buf, sizeof(buf), "SHA-256",
-                                ecdsaSig, ecdsaSigLen, 0);
+        err = test_digest_verify(pkey, osslLibCtx, buf, sizeof(buf), "SHA-256", NULL,
+                                ecdsaSig, ecdsaSigLen, 0, 0);
     }
 
     EVP_PKEY_free(pkey);
@@ -1453,32 +1453,32 @@ int test_ecdsa_p384(void *data)
     if (err == 0) {
         PRINT_MSG("Sign with OpenSSL");
         ecdsaSigLen = sizeof(ecdsaSig);
-        err = test_digest_sign(pkey, osslLibCtx, buf, sizeof(buf), md,
-                              ecdsaSig, &ecdsaSigLen, 0);
+        err = test_digest_sign(pkey, osslLibCtx, buf, sizeof(buf), md, NULL,
+                              ecdsaSig, &ecdsaSigLen, 0, 0);
     }
     if (err == 0) {
         PRINT_MSG("Verify with wolfprovider");
-        err = test_digest_verify(pkey, wpLibCtx, buf, sizeof(buf), md,
-                                ecdsaSig, ecdsaSigLen, 0);
+        err = test_digest_verify(pkey, wpLibCtx, buf, sizeof(buf), md, NULL,
+                                ecdsaSig, ecdsaSigLen, 0, 0);
     }
     if (err == 0) {
         PRINT_MSG("Verify bad signature with wolfprovider");
         ecdsaSig[1] ^= 0x80;
-        res = test_digest_verify(pkey, wpLibCtx, buf, sizeof(buf), md,
-                                ecdsaSig, ecdsaSigLen, 0);
+        res = test_digest_verify(pkey, wpLibCtx, buf, sizeof(buf), md, NULL,
+                                ecdsaSig, ecdsaSigLen, 0, 0);
         if (res != 1)
             err = 1;
     }
     if (err == 0) {
         PRINT_MSG("Sign with wolfprovider");
         ecdsaSigLen = sizeof(ecdsaSig);
-        err = test_digest_sign(pkey, wpLibCtx, buf, sizeof(buf), md,
-                              ecdsaSig, &ecdsaSigLen, 0);
+        err = test_digest_sign(pkey, wpLibCtx, buf, sizeof(buf), md, NULL,
+                              ecdsaSig, &ecdsaSigLen, 0, 0);
     }
     if (err == 0) {
         PRINT_MSG("Verify with OpenSSL");
-        err = test_digest_verify(pkey, osslLibCtx, buf, sizeof(buf), md,
-                                ecdsaSig, ecdsaSigLen, 0);
+        err = test_digest_verify(pkey, osslLibCtx, buf, sizeof(buf), md, NULL,
+                                ecdsaSig, ecdsaSigLen, 0, 0);
     }
 
     EVP_PKEY_free(pkey);
@@ -1513,32 +1513,32 @@ int test_ecdsa_p521(void *data)
     if (err == 0) {
         PRINT_MSG("Sign with OpenSSL");
         ecdsaSigLen = sizeof(ecdsaSig);
-        err = test_digest_sign(pkey, osslLibCtx, buf, sizeof(buf), md,
-                              ecdsaSig, &ecdsaSigLen, 0);
+        err = test_digest_sign(pkey, osslLibCtx, buf, sizeof(buf), md, NULL,
+                              ecdsaSig, &ecdsaSigLen, 0, 0);
     }
     if (err == 0) {
         PRINT_MSG("Verify with wolfprovider");
-        err = test_digest_verify(pkey, wpLibCtx, buf, sizeof(buf), md,
-                                ecdsaSig, ecdsaSigLen, 0);
+        err = test_digest_verify(pkey, wpLibCtx, buf, sizeof(buf), md, NULL,
+                                ecdsaSig, ecdsaSigLen, 0, 0);
     }
     if (err == 0) {
         PRINT_MSG("Verify bad signature with wolfprovider");
         ecdsaSig[1] ^= 0x80;
-        res = test_digest_verify(pkey, wpLibCtx, buf, sizeof(buf), md,
-                                ecdsaSig, ecdsaSigLen, 0);
+        res = test_digest_verify(pkey, wpLibCtx, buf, sizeof(buf), md, NULL,
+                                ecdsaSig, ecdsaSigLen, 0, 0);
         if (res != 1)
             err = 1;
     }
     if (err == 0) {
         PRINT_MSG("Sign with wolfprovider");
         ecdsaSigLen = sizeof(ecdsaSig);
-        err = test_digest_sign(pkey, wpLibCtx, buf, sizeof(buf), md,
-                              ecdsaSig, &ecdsaSigLen, 0);
+        err = test_digest_sign(pkey, wpLibCtx, buf, sizeof(buf), md, NULL,
+                              ecdsaSig, &ecdsaSigLen, 0, 0);
     }
     if (err == 0) {
         PRINT_MSG("Verify with OpenSSL");
-        err = test_digest_verify(pkey, osslLibCtx, buf, sizeof(buf), md,
-                                ecdsaSig, ecdsaSigLen, 0);
+        err = test_digest_verify(pkey, osslLibCtx, buf, sizeof(buf), md, NULL,
+                                ecdsaSig, ecdsaSigLen, 0, 0);
     }
 
     EVP_PKEY_free(pkey);
