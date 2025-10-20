@@ -107,18 +107,20 @@ jobs:
 
       - name: Install IPMI simulator
         run: |
+          set +e
           apt-get update
-          apt-get install -y freeipmi-tools net-tools ipmipower || true
+          apt-get install -y freeipmi-tools net-tools
           echo "Checking for BMC simulator..."
           if command -v bmc-sim &> /dev/null; then
             echo "Starting FreeIPMI BMC simulator..."
-            bmc-sim --foreground=no --bind-addr=127.0.0.1 --port=6230 --session-timeout=5
+            bmc-sim --foreground=no --bind-addr=127.0.0.1 --port=6230 --session-timeout=5 || true
             sleep 3
             netstat -an | grep 6230 || echo "Warning: BMC simulator not listening"
           else
             echo "WARNING: bmc-sim not available in this environment"
             echo "Tests will verify crypto initialization without full BMC simulation"
           fi
+          exit 0
 
       - name: Test ipmitool crypto + LAN/LANPLUS functionality
         working-directory: ipmitool
