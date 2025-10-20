@@ -23,7 +23,7 @@ jobs:
     runs-on: ubuntu-22.04
     # Run inside Debian Bookworm to match packaging environment
     container:
-      image: ghcr.io/wolfssl/wolfprovider-build:bookworm
+      image: ghcr.io/${{ github.repository_owner }}/wolfprovider-build:bookworm
       env:
         DEBIAN_FRONTEND: noninteractive
     timeout-minutes: 20
