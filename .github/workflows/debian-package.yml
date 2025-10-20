@@ -25,7 +25,7 @@ jobs:
         wolfssl_ref: [ 'v5.8.2-stable' ]
         openssl_ref: [ 'openssl-3.5.2' ]
         fips_ref: [ 'FIPS', 'non-FIPS' ]
-        replace_default: [ true ]
+        replace_default: [ 'true', 'false' ]
 
   libwolfprov-standalone:
     runs-on: ubuntu-22.04
@@ -42,7 +42,7 @@ jobs:
         wolfssl_ref: [ 'v5.8.2-stable' ]
         openssl_ref: [ 'openssl-3.5.2' ]
         fips_ref: [ 'FIPS', 'non-FIPS' ]
-        replace_default: [ true ]
+        replace_default: ['true', 'false' ]
     env:
       WOLFSSL_PACKAGES_PATH: /tmp/wolfssl-packages
       OPENSSL_PACKAGES_PATH: /tmp/openssl-packages
