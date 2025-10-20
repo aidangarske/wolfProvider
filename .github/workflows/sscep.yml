@@ -3,7 +3,7 @@ name: sscep Tests
 # START OF COMMON SECTION
 on:
   push:
-    branches: [ '*' ]
+    branches: [ 'master', 'main', 'release/**' ]
   pull_request:
     branches: [ '*' ]
 

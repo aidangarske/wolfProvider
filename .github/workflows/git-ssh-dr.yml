@@ -2,7 +2,7 @@ name: Git SSH Default Replace Tests
 
 on:
   push:
-    branches: [ '*' ]
+    branches: [ 'master', 'main', 'release/**' ]
   pull_request:
     branches: [ '*' ]
 
