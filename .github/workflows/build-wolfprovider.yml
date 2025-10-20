@@ -23,7 +23,7 @@ jobs:
     runs-on: ubuntu-22.04
     # Run inside Debian Bookworm to match packaging environment
     container:
-      image: debian:bookworm
+      image: ghcr.io/wolfssl/wolfprovider-build:bookworm
       env:
         DEBIAN_FRONTEND: noninteractive
     timeout-minutes: 20
@@ -32,32 +32,6 @@ jobs:
       OPENSSL_PACKAGES_PATH: /tmp/openssl-packages
       WOLFPROV_PACKAGES_PATH: /tmp/wolfprov-packages
     steps:
-      # Install git prior to cloning to ensure we have the full repo
-      # TODO: create a docker with these pre-installed
-      - name: Install build dependencies
-        run: |
-          apt-get update && apt-get install -y --no-install-recommends \
-            build-essential \
-            devscripts \
-            debhelper \
-            dh-autoreconf \
-            libtool \
-            pkg-config \
-            git \
-            wget \
-            curl \
-            ca-certificates \
-            openssl \
-            dpkg-dev \
-            lintian \
-            fakeroot \
-            dh-exec \
-            equivs \
-            expect \
-            xxd \
-            bc \
-            libdistro-info-perl
-
       # Download pre-built packages from debs branch
       - name: Checkout debs branch
         uses: actions/checkout@v4
