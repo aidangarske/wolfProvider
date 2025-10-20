@@ -437,32 +437,32 @@ static int test_rsa_sign_verify_pad(int padMode, const EVP_MD *md,
     if ((err == 0) && (padMode != RSA_NO_PADDING)) {
         PRINT_MSG("Test creating/verifying a signature");
         PRINT_MSG("Sign with OpenSSL");
-        err = test_digest_sign(pkey, osslLibCtx, buf, bufLen, "SHA-256", rsaSig,
-            &rsaSigLen, padMode);
+        err = test_digest_sign(pkey, osslLibCtx, buf, bufLen, "SHA-256", NULL, rsaSig,
+            &rsaSigLen, padMode, 0);
     }
     if ((err == 0) && (padMode != RSA_NO_PADDING)) {
         PRINT_MSG("Verify with wolfprovider");
-        err = test_digest_verify(pkey, wpLibCtx, buf, bufLen, "SHA-256", rsaSig,
-            rsaSigLen, padMode);
+        err = test_digest_verify(pkey, wpLibCtx, buf, bufLen, "SHA-256", NULL, rsaSig,
+            rsaSigLen, padMode, 0);
     }
     if ((err == 0) && (padMode != RSA_NO_PADDING)) {
         PRINT_MSG("Verify bad signature with wolfprovider");
         rsaSig[1] ^= 0x80;
-        res = test_digest_verify(pkey, wpLibCtx, buf, bufLen, "SHA-256", rsaSig,
-            rsaSigLen, padMode);
+        res = test_digest_verify(pkey, wpLibCtx, buf, bufLen, "SHA-256", NULL, rsaSig,
+            rsaSigLen, padMode, 0);
         if (res != 1)
             err = 1;
     }
     if ((err == 0) && (padMode != RSA_NO_PADDING)) {
         PRINT_MSG("Sign with wolfprovider");
         rsaSigLen = RSA_size(rsaKey);
-        err = test_digest_sign(pkey, wpLibCtx, buf, bufLen, "SHA-256", rsaSig,
-            &rsaSigLen, padMode);
+        err = test_digest_sign(pkey, wpLibCtx, buf, bufLen, "SHA-256", NULL, rsaSig,
+            &rsaSigLen, padMode, 0);
     }
     if ((err == 0) && (padMode != RSA_NO_PADDING)) {
         PRINT_MSG("Verify with OpenSSL");
-        err = test_digest_verify(pkey, osslLibCtx, buf, bufLen, "SHA-256",
-             rsaSig, rsaSigLen, padMode);
+        err = test_digest_verify(pkey, osslLibCtx, buf, bufLen, "SHA-256", NULL,
+             rsaSig, rsaSigLen, padMode, 0);
     }
 #endif
 
@@ -594,20 +594,20 @@ int test_rsa_sign_sha1(void *data)
      * cross-provider behavior with SHA-1. */
     if (err == 0) {
         PRINT_MSG("Sign with OpenSSL");
-        err = test_digest_sign(pkey, osslLibCtx, buf, sizeof(buf), "SHA-1",
-                               rsaSig, &rsaSigLen, 0);
+        err = test_digest_sign(pkey, osslLibCtx, buf, sizeof(buf), "SHA-1", NULL,
+                               rsaSig, &rsaSigLen, 0, 0);
     }
     if (err == 0) {
         PRINT_MSG("Verify with wolfprovider");
-        err = test_digest_verify(pkey, wpLibCtx, buf, sizeof(buf), "SHA-1",
-        rsaSig, rsaSigLen, 0);
+        err = test_digest_verify(pkey, wpLibCtx, buf, sizeof(buf), "SHA-1", NULL,
+        rsaSig, rsaSigLen, 0, 0);
     }
 #endif
     if (err == 0) {
         PRINT_MSG("Sign with wolfprovider");
         rsaSigLen = RSA_size(rsaKey);
-        err = test_digest_sign(pkey, wpLibCtx, buf, sizeof(buf), "SHA-1",
-                              rsaSig, &rsaSigLen, 0) != 1;
+        err = test_digest_sign(pkey, wpLibCtx, buf, sizeof(buf), "SHA-1", NULL,
+                              rsaSig, &rsaSigLen, 0, 0) != 1;
     }
     EVP_PKEY_free(pkey);
 
