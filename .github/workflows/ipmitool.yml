@@ -135,8 +135,19 @@ jobs:
           echo "=== Verifying ipmitool build with OpenSSL support ==="
           if ldd ./src/ipmitool | grep -q libcrypto; then
             echo "✅ ipmitool is linked with OpenSSL crypto library"
+            ldd ./src/ipmitool | grep libcrypto
           else
             echo "❌ ipmitool is NOT linked with OpenSSL"
+            exit 1
+          fi
+
+          echo "=== Checking if BMC simulator is available ==="
+          if netstat -an | grep -q 6230; then
+            echo "✅ BMC simulator is running on port 6230"
+            BMC_AVAILABLE=1
+          else
+            echo "⚠️  BMC simulator not available - tests will verify build only"
+            BMC_AVAILABLE=0
           fi
 
           echo "=== Testing LAN interface (basic crypto init) ==="
@@ -147,30 +158,31 @@ jobs:
           ./src/ipmitool -I lanplus -H 127.0.0.1 -p 6230 -U admin -P admin chassis status 2>&1 | tee ipmitool-lanplus.log
           LANPLUS_RESULT=${PIPESTATUS[0]}
 
-          # Evaluate combined results
-          if [ -n "${{ matrix.force_fail }}" ]; then
-            # With force_fail, we expect crypto operations to fail
-            # Check if wolfProvider errors are present in logs
-            if grep -qiE "wolfProvider|wolfSSL" ipmitool-lanplus.log; then
-              echo "wolfProvider crypto initialization detected ✅"
-              TEST_RESULT=0
-            else
-              echo "No wolfProvider crypto activity detected"
-              # Still pass if the commands failed (expected with force_fail)
-              TEST_RESULT=0
-            fi
+          # Evaluate results
+          if [ $BMC_AVAILABLE -eq 0 ]; then
+            # Without BMC simulator, we can only verify the build
+            echo "✅ Build verification passed - ipmitool linked with OpenSSL/wolfProvider"
+            TEST_RESULT=0
           else
-            # Without force_fail, verify crypto libraries are being used
-            # Connection may fail without BMC simulator, but crypto should initialize
-            if grep -qiE "authentication|HMAC|SHA|AES|wolfProvider|cipher|encrypt" ipmitool-lanplus.log; then
-              echo "Crypto path triggered ✅"
-              TEST_RESULT=0
-            elif ldd ./src/ipmitool | grep -q libcrypto; then
-              echo "Crypto library linked, test environment may lack BMC simulator ✅"
-              TEST_RESULT=0
+            # With BMC simulator, we can test actual crypto operations
+            if [ -n "${{ matrix.force_fail }}" ]; then
+              # With force_fail, we expect crypto operations to fail
+              if grep -qiE "wolfProvider|wolfSSL|error" ipmitool-lanplus.log; then
+                echo "wolfProvider crypto behavior detected ✅"
+                TEST_RESULT=0
+              else
+                echo "Expected wolfProvider activity with force_fail"
+                TEST_RESULT=1
+              fi
             else
-              echo "Crypto path not detected ❌"
-              TEST_RESULT=1
+              # Without force_fail, verify crypto operations work
+              if grep -qiE "authentication|HMAC|SHA|AES|wolfProvider|cipher|encrypt" ipmitool-lanplus.log; then
+                echo "Crypto operations detected ✅"
+                TEST_RESULT=0
+              else
+                echo "Crypto operations not detected"
+                TEST_RESULT=1
+              fi
             fi
           fi
 
