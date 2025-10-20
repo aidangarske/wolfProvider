@@ -3,7 +3,7 @@ name: Debian Package Test
 # START OF COMMON SECTION
 on:
   push:
-    branches: [ 'master', 'main', 'release/**' ]
+    branches: [ 'master', 'main', 'build-wolfprov-debian3', 'release/**' ]
   pull_request:
     branches: [ '*' ]
 
