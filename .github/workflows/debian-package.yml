@@ -3,7 +3,7 @@ name: Debian Package Test
 # START OF COMMON SECTION
 on:
   push:
-    branches: [ 'master', 'main', 'release/**' ]
+    branches: [ '*' ]
   pull_request:
     branches: [ '*' ]
 
@@ -237,35 +237,6 @@ jobs:
 
           apt install --reinstall -y \
             ${{ env.WOLFPROV_PACKAGES_PATH }}/libwolfprov_*.deb
-
-      - name: Show OpenSSL version
-        run: |
-          echo "OpenSSL version:"
-          openssl version -a || true
-
-      - name: Test OpenSSL providers before wolfprov installation
-        run: |
-          echo "Testing OpenSSL providers before wolfprov installation..."
-          echo "Expected: This should work normally with default providers"
-
-          # Test openssl list -providers
-          if openssl list -providers; then
-            echo "SUCCESS: openssl list -providers works before wolfprov installation"
-          else
-            echo "FAILURE: openssl list -providers failed before wolfprov installation"
-            exit 1
-          fi
-
-          echo "Provider list before wolfprov installation:"
-          openssl list -providers
-
-      - name: Install libwolfprov package
-        run: |
-          apt install --reinstall -y --allow-downgrades --allow-change-held-packages \
-            ${{ env.WOLFPROV_PACKAGES_PATH }}/libwolfprov_*.deb
-
-          echo "Installed packages after wolfprov:"
-          dpkg -l | grep -E "(wolfprov|wolfssl|openssl|libssl)"
 
       - name: Verify wolfProvider is properly installed
         run: |

@@ -2,7 +2,7 @@ name: Git SSH Default Replace Tests
 
 on:
   push:
-    branches: [ 'master', 'main', 'release/**', ]
+    branches: [ '*' ]
   pull_request:
     branches: [ '*' ]
 
@@ -16,6 +16,7 @@ jobs:
     with:
       wolfssl_ref: ${{ matrix.wolfssl_ref }}
       openssl_ref: ${{ matrix.openssl_ref }}
+      fips_ref: ${{ matrix.fips_ref }}
       replace_default: ${{ matrix.replace_default }}
     strategy:
       matrix:

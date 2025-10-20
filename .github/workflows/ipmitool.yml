@@ -3,7 +3,7 @@ name: IPMItool Tests
 # START OF COMMON SECTION
 on:
   push:
-    branches: [ 'master', 'main', 'release/**' ]
+    branches: [ '*' ]
   pull_request:
     branches: [ '*' ]
 
@@ -105,44 +105,53 @@ jobs:
           path: ipmitool
           check: false
 
-      - name: Test ipmitool crypto functionality
+      - name: Install IPMI simulator
+        run: |
+          apt-get update
+          apt-get install -y freeipmi-tools net-tools
+          echo "Starting FreeIPMI BMC simulator..."
+          bmc-sim --foreground=no --bind-addr=127.0.0.1 --port=6230 --session-timeout=5
+          sleep 3
+          netstat -an | grep 6230 || echo "Warning: BMC simulator not listening"
+
+      - name: Test ipmitool crypto + LAN/LANPLUS functionality
         working-directory: ipmitool
         shell: bash
         run: |
-          set +o pipefail # allow force_fail to work
-
-          # Run version check
-          ./src/ipmitool -V
-
+          set +o pipefail
           export ${{ matrix.force_fail }}
 
-          # Test crypto operations by attempting IPMI-over-LAN connection
-          # This will use HMAC-SHA1 and other crypto functions even if connection fails
-          echo "Testing ipmitool crypto operations via LAN connection attempt..."
-          
-          # Attempt to connect to a dummy IP - this will trigger crypto initialization
-          # The connection will fail, but crypto operations will be attempted
-          ./src/ipmitool -I lan -H 127.0.0.1 -U admin -P admin chassis status 2>&1 | tee ipmitool-test.log
-          TEST_RESULT=${PIPESTATUS[0]}
+          echo "=== ipmitool version ==="
+          ./src/ipmitool -V
 
-          # With WPFF enabled, crypto operations should fail
-          # Without WPFF, connection will fail but for different reasons (no IPMI hardware)
+          echo "=== Testing LAN interface (basic crypto init) ==="
+          ./src/ipmitool -I lan -H 127.0.0.1 -p 6230 -U admin -P admin chassis status 2>&1 | tee ipmitool-lan.log
+          LAN_RESULT=${PIPESTATUS[0]}
+
+          echo "=== Testing LANPLUS interface (OpenSSL / wolfProvider crypto) ==="
+          ./src/ipmitool -I lanplus -H 127.0.0.1 -p 6230 -U admin -P admin chassis status 2>&1 | tee ipmitool-lanplus.log
+          LANPLUS_RESULT=${PIPESTATUS[0]}
+
+          # Evaluate combined results
           if [ -n "${{ matrix.force_fail }}" ]; then
-            # With force_fail, we expect failure due to crypto
-            if [ $TEST_RESULT -ne 0 ]; then
-              echo "Expected failure with WPFF (crypto operations failed as expected)"
-              TEST_RESULT=0  # Mark as success since failure was expected
+            if [ $LAN_RESULT -ne 0 ] && [ $LANPLUS_RESULT -ne 0 ]; then
+              echo "Expected crypto failures (WOLFPROV_FORCE_FAIL=1) ✅"
+              TEST_RESULT=0
             else
-              echo "ERROR: Command succeeded when it should have failed with WPFF"
+              echo "Unexpected success with WOLFPROV_FORCE_FAIL"
               TEST_RESULT=1
             fi
           else
-            # Without force_fail, command may fail due to no IPMI hardware, but crypto should work
-            # Check that we at least attempted crypto operations
-            if grep -q "Error" ipmitool-test.log; then
-              echo "Command failed (expected without IPMI hardware), but crypto was attempted"
-              TEST_RESULT=0  # Success - crypto worked, just no IPMI hardware
+            if grep -qiE "authentication|HMAC|SHA|AES|wolfProvider" ipmitool-lanplus.log; then
+              echo "Crypto path triggered ✅"
+              TEST_RESULT=0
+            else
+              echo "Crypto path not detected ❌"
+              TEST_RESULT=1
             fi
           fi
 
+          echo "=== Logs: ==="
+          tail -n 20 ipmitool-lanplus.log || true
           $GITHUB_WORKSPACE/.github/scripts/check-workflow-result.sh $TEST_RESULT ${{ matrix.force_fail }} ipmitool
+  
