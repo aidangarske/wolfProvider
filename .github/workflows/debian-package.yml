@@ -208,6 +208,11 @@ jobs:
       WOLFPROV_PACKAGES_PATH: /tmp/wolfprov-packages
       WOLFPROV_CONF_FILE: /etc/ssl/openssl.cnf.d/wolfprovider.conf
     steps:
+      - name: Checkout wolfProvider
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
       - name: Download packages from build job
         uses: actions/download-artifact@v4
         with:
