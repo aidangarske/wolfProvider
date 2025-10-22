@@ -136,12 +136,22 @@ index 88244f856c..78e66ec1ee 100644
 +mo0jyWthmHpODGkHx/mwFjG85U6aMn/A
  -----END CERTIFICATE-----
 diff --git a/test/core/handshake/client_ssl.cc b/test/core/handshake/client_ssl.cc
-index 45e39c1517..b32a4259cb 100644
+index 45e39c1517..33262dca19 100644
 --- a/test/core/handshake/client_ssl.cc
 +++ b/test/core/handshake/client_ssl.cc
-@@ -220,16 +220,26 @@ static void server_thread(void* arg) {
+@@ -216,20 +216,49 @@ static void server_thread(void* arg) {
+   if (!ctx) {
+     perror("Unable to create SSL context");
+     ERR_print_errors_fp(stderr);
++    // Check if we're in force-fail mode (WOLFPROV_FORCE_FAIL)
++    const char* force_fail = getenv("WOLFPROV_FORCE_FAIL");
++    if (force_fail != nullptr && strcmp(force_fail, "1") == 0) {
++      gpr_log(GPR_ERROR, "SSL context creation failed (expected with WOLFPROV_FORCE_FAIL)");
++      return;  // Exit gracefully instead of abort
++    }
+     abort();
    }
- 
+
    // Load key pair.
 -  if (SSL_CTX_use_certificate_file(ctx, SSL_CERT_PATH, SSL_FILETYPE_PEM) < 0) {
 -    perror("Unable to use certificate file.");
@@ -149,24 +159,37 @@ index 45e39c1517..b32a4259cb 100644
 +  if (SSL_CTX_use_PrivateKey_file(ctx, SSL_KEY_PATH, SSL_FILETYPE_PEM) < 0) {
 +    perror("Unable to use private key file.");
      ERR_print_errors_fp(stderr);
++    const char* force_fail = getenv("WOLFPROV_FORCE_FAIL");
++    if (force_fail != nullptr && strcmp(force_fail, "1") == 0) {
++      gpr_log(GPR_ERROR, "Private key loading failed (expected with WOLFPROV_FORCE_FAIL)");
++      SSL_CTX_free(ctx);
++      return;
++    }
      abort();
    }
 -  if (SSL_CTX_use_PrivateKey_file(ctx, SSL_KEY_PATH, SSL_FILETYPE_PEM) < 0) {
 -    perror("Unable to use private key file.");
-+  
++
 +  // Then load the certificate
 +  if (SSL_CTX_use_certificate_file(ctx, SSL_CERT_PATH, SSL_FILETYPE_PEM) < 0) {
 +    perror("Unable to use certificate file.");
      ERR_print_errors_fp(stderr);
-+    
++
 +    // Check if this is a FIPS-related issue
 +    unsigned long err_code = ERR_peek_last_error();
 +    if (ERR_GET_REASON(err_code) == 0x18F) {  // SSL_R_EE_KEY_TOO_SMALL
 +      gpr_log(GPR_ERROR, "Certificate rejected in FIPS mode (key size issue).");
 +    }
++
++    const char* force_fail = getenv("WOLFPROV_FORCE_FAIL");
++    if (force_fail != nullptr && strcmp(force_fail, "1") == 0) {
++      gpr_log(GPR_ERROR, "Certificate loading failed (expected with WOLFPROV_FORCE_FAIL)");
++      SSL_CTX_free(ctx);
++      return;
++    }
      abort();
    }
-+  
++
    if (SSL_CTX_check_private_key(ctx) != 1) {
      perror("Check private key failed.");
      ERR_print_errors_fp(stderr);
