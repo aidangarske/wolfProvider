@@ -166,6 +166,7 @@ main() {
 
     if [ $replace_default -eq 0 ] && [ $no_install -eq 0 ]; then
         printf "Using standard OpenSSL build\n"
+        apt-get update
         apt install -y --reinstall --allow-downgrades --allow-change-held-packages \
             openssl libssl3 libssl-dev
         exit 0
