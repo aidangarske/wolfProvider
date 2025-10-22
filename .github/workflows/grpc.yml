@@ -147,6 +147,9 @@ jobs:
           ./tools/run_tests/start_port_server.py
 
           export ${{ matrix.force_fail }}
+          if [ ${{ matrix.force_fail }} == 'WOLFPROV_FORCE_FAIL=1' ]; then
+            set +e
+          fi
 
           # Run the tests
           all_passed=1
@@ -165,10 +168,10 @@ jobs:
           done
           if [ $all_passed -eq 1 ]; then
             echo "ALL TESTS PASSED"
-            TEST_RESULT=1
+            TEST_RESULT=0
           else
             echo "SOME TESTS FAILED"
-            TEST_RESULT=0
+            TEST_RESULT=1
           fi
 
           # Check results
