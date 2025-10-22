@@ -116,7 +116,11 @@ jobs:
       - run: |
           cd krb5
           # Apply the wolfProvider patch
-          patch -p1 < $GITHUB_WORKSPACE/osp/wolfProvider/krb5/krb5-1.20.1-final-wolfprov.patch
+          if [ "${{ matrix.fips_ref }}" = "FIPS" ]; then
+            patch -p1 < $GITHUB_WORKSPACE/osp/wolfProvider/krb5/${{ matrix.krb5_ref }}-wolfprov-fips.patch
+          else
+            patch -p1 < $GITHUB_WORKSPACE/osp/wolfProvider/krb5/${{ matrix.krb5_ref }}-wolfprov.patch
+          fi
 
       - name: Build and test KRB5 with wolfProvider
         working-directory: krb5

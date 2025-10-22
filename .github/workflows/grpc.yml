@@ -50,6 +50,7 @@ jobs:
         wolfssl_ref: [ 'v5.8.2-stable' ]
         openssl_ref: [ 'openssl-3.5.2' ]
         fips_ref: [ 'FIPS', 'non-FIPS' ]
+        force_fail: [ 'WOLFPROV_FORCE_FAIL=1', '' ]
         replace_default: [ true ]
     env:
       WOLFSSL_PACKAGES_PATH: /tmp/wolfssl-packages
@@ -120,6 +121,17 @@ jobs:
           path: grpc
           ref: ${{ matrix.grpc_ref }}
 
+      - name: Checkout OSP
+        uses: actions/checkout@v4
+        with:
+          repository: wolfssl/osp
+          path: osp
+          fetch-depth: 1
+      - run: |
+          cd grpc
+          # Apply the wolfProvider patch
+          patch -p1 < $GITHUB_WORKSPACE/osp/wolfProvider/grpc/grpc-FIPS-${{ matrix.grpc_ref }}-wolfprov.patch
+
       - name: Build grpc with wolfProvider
         working-directory: ./grpc
         run: |
@@ -143,7 +155,33 @@ jobs:
           # Start the port server
           ./tools/run_tests/start_port_server.py
 
+          export ${{ matrix.force_fail }}
+          set +e
+
           # Run the tests
+          all_passed=1
           for t in ${{ matrix.tests }} ; do
+            echo "==================================="
+            echo "Running test: $t"
+            echo "Force fail: ${{ matrix.force_fail }}"
+            echo "==================================="
             ./cmake/build/$t
+            exit_code=$?
+            if [ $exit_code -ne 0 ]; then
+              echo "Test $t FAILED with exit code $exit_code"
+              echo "Force fail: ${{ matrix.force_fail }}"
+              all_passed=0
+            fi
           done
+
+          set -e
+          if [ $all_passed -eq 1 ]; then
+            echo "ALL TESTS PASSED"
+            TEST_RESULT=0
+          else
+            echo "SOME TESTS FAILED"
+            TEST_RESULT=1
+          fi
+
+          # Check results
+          $GITHUB_WORKSPACE/.github/scripts/check-workflow-result.sh $TEST_RESULT ${{ matrix.force_fail }} grpc
