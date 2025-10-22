@@ -165,10 +165,10 @@ jobs:
           done
           if [ $all_passed -eq 1 ]; then
             echo "ALL TESTS PASSED"
-            $TEST_RESULT=1
+            TEST_RESULT=1
           else
             echo "SOME TESTS FAILED"
-            $TEST_RESULT=0
+            TEST_RESULT=0
           fi
 
           # Check results
