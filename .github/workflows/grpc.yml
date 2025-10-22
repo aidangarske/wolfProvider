@@ -3,7 +3,7 @@ name: gRPC Tests
 # START OF COMMON SECTION
 on:
   push:
-    branches: [ 'master', 'main', 'release/**' ]
+    branches: [ '*' ]
   pull_request:
     branches: [ '*' ]
 
@@ -123,6 +123,8 @@ jobs:
       - name: Build grpc with wolfProvider
         working-directory: ./grpc
         run: |
+          patch -p1 < $GITHUB_WORKSPACE/grpc-patch.diff
+
           # Initialize submodules
           git submodule update --init
 

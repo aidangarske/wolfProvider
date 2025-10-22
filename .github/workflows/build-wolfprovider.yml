@@ -99,7 +99,7 @@ jobs:
           # Install wolfSSL packages
           if [ -n "$(ls -A ${{ env.WOLFSSL_PACKAGES_PATH }}/*.deb 2>/dev/null)" ]; then
             echo "Installing wolfSSL packages..."
-            dpkg -i ${{ env.WOLFSSL_PACKAGES_PATH }}/*.deb || true
+          dpkg -i ${{ env.WOLFSSL_PACKAGES_PATH }}/*.deb || true
           fi
 
           # Fix any dependency issues
@@ -144,7 +144,7 @@ jobs:
           cp $GITHUB_WORKSPACE/../libwolfprov*.tar.gz ${{ env.WOLFPROV_PACKAGES_PATH }}
 
           # Note: OpenSSL and wolfSSL packages already copied from debs branch earlier
-          
+
           printf "Listing packages directory:\n"
           echo "wolfProvider packages:"
           ls -la ${{ env.WOLFPROV_PACKAGES_PATH }}
