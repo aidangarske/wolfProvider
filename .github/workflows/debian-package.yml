@@ -27,7 +27,7 @@ jobs:
         fips_ref: [ 'FIPS', 'non-FIPS' ]
         replace_default: [ true ]
 
-  libwolfprov-standalone:
+  libwolfprov-replace-default:
     runs-on: ubuntu-22.04
     needs: build_wolfprovider
     # Run inside Debian Bookworm to match packaging environment
@@ -43,6 +43,7 @@ jobs:
         openssl_ref: [ 'openssl-3.5.2' ]
         fips_ref: [ 'FIPS', 'non-FIPS' ]
         replace_default: [ true ]
+        force_fail: [ 'WOLFPROV_FORCE_FAIL=1', '' ]
     env:
       WOLFSSL_PACKAGES_PATH: /tmp/wolfssl-packages
       OPENSSL_PACKAGES_PATH: /tmp/openssl-packages
@@ -73,7 +74,7 @@ jobs:
           ls -la ${{ env.OPENSSL_PACKAGES_PATH }}
           ls -la ${{ env.WOLFPROV_PACKAGES_PATH }}
 
-          apt install --reinstall -y \
+          apt install --reinstall -y --allow-downgrades --allow-change-held-packages \
             ${{ env.WOLFSSL_PACKAGES_PATH }}/libwolfssl_*.deb
 
           apt install --reinstall -y --allow-downgrades --allow-change-held-packages \
@@ -81,7 +82,7 @@ jobs:
             ${{ env.OPENSSL_PACKAGES_PATH }}/libssl3_*.deb \
             ${{ env.OPENSSL_PACKAGES_PATH }}/libssl-dev_*.deb
 
-          apt install --reinstall -y \
+          apt install --reinstall -y --allow-downgrades --allow-change-held-packages \
             ${{ env.WOLFPROV_PACKAGES_PATH }}/libwolfprov_*.deb
 
       - name: Verify wolfProvider is properly installed
@@ -107,7 +108,7 @@ jobs:
 
           # Run the do-cmd-test.sh script to execute interoperability tests
           echo "Running OpenSSL provider interoperability tests..."
-          OPENSSL_BIN=$(eval which openssl) ./scripts/cmd_test/do-cmd-tests.sh
+          OPENSSL_BIN=$(eval which openssl) ${{ matrix.force_fail }} ${{ matrix.fips_ref == 'FIPS' && 'WOLFSSL_ISFIPS=1' || '' }} ./scripts/cmd_test/do-cmd-tests.sh
 
           # Restore wolfprovider configuration
           echo "Restoring wolfprovider configuration:"

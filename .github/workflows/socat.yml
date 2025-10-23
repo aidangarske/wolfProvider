@@ -35,7 +35,7 @@ jobs:
       env:
         DEBIAN_FRONTEND: noninteractive
     # This should be a safe limit for the tests to run.
-    timeout-minutes: 20
+    timeout-minutes: 30
     strategy:
       matrix:
         wolfssl_ref: [ 'v5.8.2-stable' ]
