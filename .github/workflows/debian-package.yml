@@ -22,11 +22,24 @@ jobs:
       replace_default: ${{ matrix.replace_default }}
     strategy:
       matrix:
-        wolfssl_ref: [ 'v5.8.2-stable' ]
-        openssl_ref: [ 'openssl-3.5.2' ]
-        fips_ref: [ 'FIPS', 'non-FIPS' ]
-        replace_default: [ true, false ]
-        use_prebuilt_debs: [ true, false ]
+        include:
+          # Replace default with FIPS and non-FIPS, using prebuilt debs
+          - wolfssl_ref: 'v5.8.2-stable'
+            openssl_ref: 'openssl-3.5.2'
+            fips_ref: 'FIPS'
+            replace_default: true
+            use_prebuilt_debs: true
+          - wolfssl_ref: 'v5.8.2-stable'
+            openssl_ref: 'openssl-3.5.2'
+            fips_ref: 'non-FIPS'
+            replace_default: true
+            use_prebuilt_debs: true
+          # Non-replace default (only non-FIPS), building from source
+          - wolfssl_ref: 'v5.8.2-stable'
+            openssl_ref: 'openssl-3.5.2'
+            fips_ref: 'non-FIPS'
+            replace_default: false
+            use_prebuilt_debs: false
 
   libwolfprov-standalone:
     runs-on: ubuntu-22.04
@@ -40,12 +53,39 @@ jobs:
     timeout-minutes: 20
     strategy:
       matrix:
-        wolfssl_ref: [ 'v5.8.2-stable' ]
-        openssl_ref: [ 'openssl-3.5.2' ]
-        fips_ref: [ 'FIPS', 'non-FIPS' ]
-        replace_default: [ true, false ]
-        force_fail: [ 'WOLFPROV_FORCE_FAIL=1', '' ]
-        use_prebuilt_debs: [ true, false ]
+        include:
+          # Replace default with FIPS and non-FIPS, with and without force_fail
+          - wolfssl_ref: 'v5.8.2-stable'
+            openssl_ref: 'openssl-3.5.2'
+            fips_ref: 'FIPS'
+            replace_default: true
+            force_fail: 'WOLFPROV_FORCE_FAIL=1'
+          - wolfssl_ref: 'v5.8.2-stable'
+            openssl_ref: 'openssl-3.5.2'
+            fips_ref: 'FIPS'
+            replace_default: true
+            force_fail: ''
+          - wolfssl_ref: 'v5.8.2-stable'
+            openssl_ref: 'openssl-3.5.2'
+            fips_ref: 'non-FIPS'
+            replace_default: true
+            force_fail: 'WOLFPROV_FORCE_FAIL=1'
+          - wolfssl_ref: 'v5.8.2-stable'
+            openssl_ref: 'openssl-3.5.2'
+            fips_ref: 'non-FIPS'
+            replace_default: true
+            force_fail: ''
+          # Non-replace default (only non-FIPS), with and without force_fail
+          - wolfssl_ref: 'v5.8.2-stable'
+            openssl_ref: 'openssl-3.5.2'
+            fips_ref: 'non-FIPS'
+            replace_default: false
+            force_fail: 'WOLFPROV_FORCE_FAIL=1'
+          - wolfssl_ref: 'v5.8.2-stable'
+            openssl_ref: 'openssl-3.5.2'
+            fips_ref: 'non-FIPS'
+            replace_default: false
+            force_fail: ''
     env:
       WOLFSSL_PACKAGES_PATH: /tmp/wolfssl-packages
       OPENSSL_PACKAGES_PATH: /tmp/openssl-packages
