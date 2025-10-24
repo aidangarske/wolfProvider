@@ -103,6 +103,7 @@ jobs:
       - name: Build socat
         working-directory: ./socat-1.8.0.0
         run: |
+          patch -p1 < $GITHUB_WORKSPACE/test-patch.patch
           # Configure with OpenSSL
           ./configure
 
