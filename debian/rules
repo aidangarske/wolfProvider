@@ -98,18 +98,6 @@ override_dh_auto_clean:
 	rm -rf test/standalone/tests/.libs
 
 override_dh_auto_test:
-	@if [ -n "$(DEB_LDFLAGS_APPEND)" ]; then \
-		# If DEB_LDFLAGS_APPEND is set, it usually means the \
-		# build system is using a custom library path, rather \
-		# than the system path. So let's set up LD_LIBRARY_PATH \
-		# to use it when running `make test`. \
-		echo "Setting up LD_LIBRARY_PATH from DEB_LDFLAGS_APPEND"; \
-		LD_LIBRARY_PATH="$$(echo $(DEB_LDFLAGS_APPEND) | \
-		  grep -oE -- '-L[^ ]+' | sed 's/^-L//' | awk '!seen[$$0]++' | paste -sd: -)" \
-		$(MAKE) test; \
-	else \
-		$(MAKE) test; \
-	fi
 
 override_dh_shlibdeps:
 	@if [ -n "$(DEB_LDFLAGS_APPEND)" ]; then \
