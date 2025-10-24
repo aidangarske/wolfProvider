@@ -130,5 +130,14 @@ jobs:
 
           export ${{ matrix.force_fail }} 
 
+          set +e
           # Run the tests with expected failures
-          SOCAT=$GITHUB_WORKSPACE/socat-1.8.0.0/socat ./test.sh -t 0.5 --expect-fail 36,64,146,214,216,217,309,310,386,399,402,403,409,410,417,418,452,453,459,460,467,468,475,477,478,491,492,527,528,529,530
+          if ${{ matrix.force_fail }} == "WOLFPROV_FORCE_FAIL=1"; then
+            SOCAT=$GITHUB_WORKSPACE/socat-1.8.0.0/socat ./test.sh -t 0.5 --expect-fail 36,64,146,214,216,217,309,310,386,399,402,403,409,410,417,418,452,453,459,460,467,468,475,477,478,491,492,527,528,529,530 
+            TEST_RESULT=$?
+          else
+            SOCAT=$GITHUB_WORKSPACE/socat-1.8.0.0/socat ./test.sh -t 0.5 --expect-fail 36,64,146,214,216,217,309,310,386,399,402,403,409,410,417,418,452,453,459,460,467,468,475,477,478,491,492,527,528,529,530
+            TEST_RESULT=$?
+          fi
+
+          $GITHUB_WORKSPACE/.github/scripts/check-workflow-result.sh $TEST_RESULT ${{ matrix.force_fail }} socat
