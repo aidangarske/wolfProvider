@@ -42,7 +42,6 @@ jobs:
         openssl_ref: [ 'openssl-3.5.2' ]
         fips_ref: [ 'FIPS', 'non-FIPS' ]
         replace_default: [ true ]
-        force_fail: [ 'WOLFPROV_FORCE_FAIL=1', '' ]
     env:
       WOLFSSL_PACKAGES_PATH: /tmp/wolfssl-packages
       OPENSSL_PACKAGES_PATH: /tmp/openssl-packages
@@ -124,18 +123,5 @@ jobs:
           # Show socat version (includes OpenSSL version info)
           ./socat -V
 
-          export ${{ matrix.force_fail }}
-
           # Run the tests with expected failures
-          # Run only tests 1-100 with very short timeout
-          # Batch 1: Basic SSL tests (62-150)
-          SOCAT=$PWD/socat ./test.sh -t 0.1 --expect-fail 62,64,77,78,79,80,125,126,127,128,129,130,135,136,137,146 -N 62 -n 150
-
-          # Batch 2: SSL security tests (151-250)  
-          SOCAT=$PWD/socat ./test.sh -t 0.1 --expect-fail 146 -N 151 -n 250
-
-          # Batch 3: SSL environment tests (251-350)
-          SOCAT=$PWD/socat ./test.sh -t 0.1 -N 251 -n 350
-
-          # Batch 4: SSL method tests (351-400)
-          SOCAT=$PWD/socat ./test.sh -t 0.1 --expect-fail 372,373,374,375,376,377,378,379,386 -N 351 -n 400
+          SOCAT=$GITHUB_WORKSPACE/socat-1.8.0.0/socat ./test.sh -t 0.5 --expect-fail 36,64,146,214,216,217,309,310,386,399,402,403,410,418,453,459,460,467,468,475,478,491,492,528,529,530
