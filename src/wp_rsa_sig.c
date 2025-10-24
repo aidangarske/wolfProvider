@@ -545,10 +545,14 @@ static int wp_rsa_signverify_init(wp_RsaSigCtx* ctx, wp_Rsa* rsa,
                 ok = 0;
             }
             if (ok) {
+                /* If saltLen is -1 (maximum), set minSaltLen to 0 for validation */
+                if (ctx->minSaltLen == -1) {
+                    ctx->minSaltLen = 0;
+                }
                 ctx->minSaltLen = wp_rsa_get_pss_salt_len(ctx->rsa);
                 if (ok && !wp_rsa_check_pss_salt_len(ctx)) {
                     ok = 0;
-               }
+                }
             }
         }
     }
