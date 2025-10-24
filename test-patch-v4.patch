@@ -1,0 +1,22 @@
+--- socat-1.8.0.0/test.sh	2025-10-24 15:56:51.187839953 -0700
++++ test.sh	2025-10-24 15:56:54.766838238 -0700
+@@ -12967,6 +12967,11 @@
+ # process 3 connects to this port and transfers data
+ # test succeeds when both data transfers work
+ if ! eval $NUMCOND; then :;
++elif ! feat=$(testfeats tcp ip4) || ! runsip4 >/dev/null; then
++    $PRINTF "test $F_n $TEST... ${YELLOW}TCP4 not available${NORMAL}\n" $N
++    numCANT=$((numCANT+1))
++    listCANT="$listCANT $N"
++else
+ elif ! feat=$(testoptions so-reuseport); then
+     $PRINTF "test $F_n $TEST... ${YELLOW}$feat not available${NORMAL}\n" $N
+     numCANT=$((numCANT+1))
+@@ -13047,6 +13052,7 @@
+     numOK=$((numOK+1))
+ fi
+ fi # NUMCOND, SO_REUSEPORT
++fi # NUMCOND, feats
+  ;;
+ esac
+ N=$((N+1))
