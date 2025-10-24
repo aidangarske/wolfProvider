@@ -111,7 +111,7 @@ jobs:
 
       - name: Apply test patch
         run: |
-          patch -p0 < $GITHUB_WORKSPACE/test-patch-v9.patch
+          patch -p0 < $GITHUB_WORKSPACE/test-patch-final.patch
 
       - name: Run socat tests
         working-directory: ./socat-1.8.0.0
