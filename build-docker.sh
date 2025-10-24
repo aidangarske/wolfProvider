@@ -8,11 +8,11 @@ docker build --build-arg HOST_UID=$(id -u) --build-arg HOST_GID=$(id -g) -t wolf
 
 # Remove existing container if it exists
 echo "Removing existing container..."
-docker rm wolfprovider-net-snmp 2>/dev/null || true
+docker rm wolfprovider 2>/dev/null || true
 
 # Run the container
 echo "Starting container..."
 docker run -it \
   -v $(pwd):/home/user/wolfProvider \
-  --name wolfprovider-net-snmp \
+  --name wolfprovider \
   wolfprovider /bin/bash
