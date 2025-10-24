@@ -2077,6 +2077,8 @@ static int wp_rsa_pss_get_params(wp_Rsa* rsa, unsigned char* data, word32 len)
     word32 idx = 0;
     wp_RsaPssParams* pss = &rsa->pssParams;
 
+    WOLFPROV_MSG(WP_LOG_COMP_RSA, "wp_rsa_pss_get_params: len=%u", len);
+    
     ok = wp_rsa_find_oid(data, len, rsa_pkcs1_oid, RSA_PKCS1_OID_SZ, &idx);
     if (ok) {
         WOLFPROV_MSG(WP_LOG_COMP_RSA, "Found RSA PKCS#1 OID at idx=%u", idx);
@@ -2108,6 +2110,8 @@ static int wp_rsa_pss_get_params(wp_Rsa* rsa, unsigned char* data, word32 len)
                 idx += 2;
             }
         }
+    } else {
+        WOLFPROV_MSG(WP_LOG_COMP_RSA, "RSA PKCS#1 OID not found");
     }
     if (ok && (data[idx] == 0xa0)) {
         WOLFPROV_MSG(WP_LOG_COMP_RSA, "Found PSS parameters at idx=%u", idx);
