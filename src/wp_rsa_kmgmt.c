@@ -2234,15 +2234,19 @@ static int wp_rsa_decode_spki(wp_Rsa* rsa, unsigned char* data, word32 len)
          * and let the base RSA pick it up instead */
         ok = wp_rsa_pss_get_params(rsa, data, len);
         if (!ok) {
-            /* Set default PSS parameters when none are provided */
-            rsa->pssParams.hashType = WC_HASH_TYPE_SHA256;
-            XSTRNCPY(rsa->pssParams.mdName, "SHA256", sizeof(rsa->pssParams.mdName));
-            rsa->pssParams.mgf = WC_MGF1SHA256;
-            XSTRNCPY(rsa->pssParams.mgfMdName, "SHA256", sizeof(rsa->pssParams.mgfMdName));
-            rsa->pssParams.saltLen = -1; /* Maximum salt length */
-            rsa->pssParams.derTrailer = 1;
-            rsa->pssDefSet = 1;
-            ok = 1; /* Continue with default parameters */
+            if (rsa->pssDefSet == 0) {
+                /* No explicit parameters found - this is expected for default keys */
+                rsa->pssParams.hashType = WC_HASH_TYPE_SHA256;
+                XSTRNCPY(rsa->pssParams.mdName, "SHA256", sizeof(rsa->pssParams.mdName));
+                rsa->pssParams.mgf = WC_MGF1SHA256;
+                XSTRNCPY(rsa->pssParams.mgfMdName, "SHA256", sizeof(rsa->pssParams.mgfMdName));
+                rsa->pssParams.saltLen = -1; /* Maximum salt length */
+                rsa->pssParams.derTrailer = 1;
+                rsa->pssDefSet = 1;
+                ok = 1; /* Continue with default parameters */
+            }
+            /* If pssDefSet == 1 then wp_rsa_pss_get_params found parameters 
+             * but failed to parse them */
         }
     }
     if (ok) {
@@ -2299,6 +2303,21 @@ static int wp_rsa_decode_pki(wp_Rsa* rsa, unsigned char* data, word32 len)
     }
     if (ok && (rsa->type == RSA_FLAG_TYPE_RSASSAPSS)) {
         ok = wp_rsa_pss_get_params(rsa, data, len);
+        if (!ok) {
+            if (rsa->pssDefSet == 0) {
+                /* No explicit parameters found - this is expected for default keys */
+                rsa->pssParams.hashType = WC_HASH_TYPE_SHA256;
+                XSTRNCPY(rsa->pssParams.mdName, "SHA256", sizeof(rsa->pssParams.mdName));
+                rsa->pssParams.mgf = WC_MGF1SHA256;
+                XSTRNCPY(rsa->pssParams.mgfMdName, "SHA256", sizeof(rsa->pssParams.mgfMdName));
+                rsa->pssParams.saltLen = -1; /* Maximum salt length */
+                rsa->pssParams.derTrailer = 1;
+                rsa->pssDefSet = 1;
+                ok = 1; /* Continue with default parameters */
+            }
+            /* If pssDefSet == 1 then wp_rsa_pss_get_params found parameters 
+             * but failed to parse them */
+        }
     }
     if (ok) {
         rsa->bits = wc_RsaEncryptSize(&rsa->key) * 8;
