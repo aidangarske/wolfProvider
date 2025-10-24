@@ -43,7 +43,6 @@ jobs:
         openssl_ref: [ 'openssl-3.5.2' ]
         fips_ref: [ 'FIPS', 'non-FIPS' ]
         replace_default: [ true ]
-        force_fail: [ 'WOLFPROV_FORCE_FAIL=1', '' ]
     env:
       WOLFSSL_PACKAGES_PATH: /tmp/wolfssl-packages
       OPENSSL_PACKAGES_PATH: /tmp/openssl-packages
@@ -108,7 +107,10 @@ jobs:
 
           # Run the do-cmd-test.sh script to execute interoperability tests
           echo "Running OpenSSL provider interoperability tests..."
-          OPENSSL_BIN=$(eval which openssl) ${{ matrix.force_fail }} ${{ matrix.fips_ref == 'FIPS' && 'WOLFSSL_ISFIPS=1' || '' }} ./scripts/cmd_test/do-cmd-tests.sh
+          if [ ${{ matrix.fips_ref }} == 'FIPS' ]; then
+            export WOLFSSL_ISFIPS=1
+          fi
+          OPENSSL_BIN=$(eval which openssl) ${{ matrix.fips_ref == 'FIPS' && 'WOLFSSL_ISFIPS=1' || '' }} ./scripts/cmd_test/do-cmd-tests.sh
 
           # Restore wolfprovider configuration
           echo "Restoring wolfprovider configuration:"
