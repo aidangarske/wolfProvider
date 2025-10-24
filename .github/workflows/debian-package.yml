@@ -107,7 +107,7 @@ jobs:
 
           # Run the do-cmd-test.sh script to execute interoperability tests
           echo "Running OpenSSL provider interoperability tests..."
-          if [ ${{ matrix.fips_ref }} == 'FIPS' ]; then
+          if [ "${{ matrix.fips_ref }}" == 'FIPS' ]; then
             export WOLFSSL_ISFIPS=1
           fi
           OPENSSL_BIN=$(eval which openssl) ${{ matrix.fips_ref == 'FIPS' && 'WOLFSSL_ISFIPS=1' || '' }} ./scripts/cmd_test/do-cmd-tests.sh
@@ -128,18 +128,17 @@ jobs:
 
           # Verify default OpenSSL provider is active
           echo "Verifying Default Provider is Active:"
-          openssl list -providers
+          PROVIDER_OUTPUT=$(openssl list -providers 2>&1)
+          echo "$PROVIDER_OUTPUT"
 
           # Verify that the default provider is present and active
           echo "Checking default provider status:"
-          if openssl list -providers | grep -q "default" && \
-            openssl list -providers | grep -q "OpenSSL Default Provider" && \
-            openssl list -providers | grep -q "status: active"; then
+          if echo "$PROVIDER_OUTPUT" | grep -q "default" && \
+            echo "$PROVIDER_OUTPUT" | grep -q "OpenSSL Default Provider" && \
+            echo "$PROVIDER_OUTPUT" | grep -q "status: active"; then
             echo "Default provider is present and active"
           else
             echo "Default provider verification failed"
-            echo "Provider output:"
-            openssl list -providers
             exit 1
           fi
 
@@ -176,14 +175,14 @@ jobs:
 
           # Verify that the default provider is present and active
           echo "Checking default provider status:"
-          if openssl list -providers | grep -q "default" && \
-            openssl list -providers | grep -q "OpenSSL Default Provider" && \
-            openssl list -providers | grep -q "status: active"; then
+          PROVIDER_OUTPUT=$(openssl list -providers 2>&1)
+          echo "$PROVIDER_OUTPUT"
+          if echo "$PROVIDER_OUTPUT" | grep -q "default" && \
+            echo "$PROVIDER_OUTPUT" | grep -q "OpenSSL Default Provider" && \
+            echo "$PROVIDER_OUTPUT" | grep -q "status: active"; then
             echo "Default provider is present and active"
           else
             echo "Default provider verification failed"
-            echo "Provider output:"
-            openssl list -providers
             exit 1
           fi
 
