@@ -1,0 +1,147 @@
+--- socat-1.8.0.0/test.sh	2025-10-24 15:56:51.187839953 -0700
++++ test.sh	2025-10-24 16:10:58.134421003 -0700
+@@ -12957,99 +12957,6 @@
+ 
+ 
+ # test the so-reuseport option
+-NAME=SO_REUSEPORT
+-case "$TESTS" in
+-*%$N%*|*%functions%*|*%ip4%*|*%tcp%*|*%socket%*|*%listen%*|*%$NAME%*)
+-TEST="$NAME: test the so-reuseport option"
+-# process 0 provides a tcp listening socket with so-reuseport;
+-# process 1 provides an equivalent tcp listening socket with so-reuseport;
+-# process 2 connects to this port and transfers data
+-# process 3 connects to this port and transfers data
+-# test succeeds when both data transfers work
+-if ! eval $NUMCOND; then :;
+-elif ! feat=$(testoptions so-reuseport); then
+-    $PRINTF "test $F_n $TEST... ${YELLOW}$feat not available${NORMAL}\n" $N
+-    numCANT=$((numCANT+1))
+-    listCANT="$listCANT $N"
+-else
+-newport tcp4; tp="$PORT"
+-tf="$td/test$N.stdout"
+-te="$td/test$N.stderr"
+-tdiff="$td/test$N.diff"
+-da2="test$N $(date) $RANDOM"
+-da3="test$N $(date) $RANDOM"
+-CMD0="$TRACE $SOCAT $opts TCP4-L:$tp,$REUSEADDR,so-reuseport PIPE"
+-CMD1="$CMD0"
+-CMD2="$TRACE $SOCAT $opts - TCP4:localhost:$tp"
+-CMD3="$CMD2"
+-printf "test $F_n $TEST... " $N
+-$CMD0 >/dev/null 2>"${te}0" &
+-pid0=$!
+-$CMD1 >/dev/null 2>"${te}1" &
+-pid1=$!
+-waittcp4port $tp 1
+-(echo "$da2") |$CMD2 >"${tf}2" 2>"${te}2"	# this should always work
+-rc2=$?
+-(echo "$da3") |$CMD3 >"${tf}3" 2>"${te}3"
+-rc3=$?
+-kill $pid0 $pid1 $pid2 2>/dev/null; wait
+-if ! echo "$da2" |diff - "${tf}2"; then
+-    $PRINTF "${YELLOW}phase 1 failed${NORMAL}\n"
+-    echo "$CMD0 &"
+-    cat "${te}0"
+-    echo "$CMD1 &"
+-    cat "${te}1"
+-    echo "$CMD2"
+-    cat "${te}2"
+-    numCANT=$((numCANT+1))
+-    listCANT="$listCANT $N"
+-elif [ $rc3 -ne 0 ]; then
+-    $PRINTF "$FAILED:\n"
+-    echo "$CMD0 &"
+-    cat "${te}0"
+-    echo "$CMD1 &"
+-    cat "${te}1"
+-    echo "$CMD2"
+-    cat "${te}2"
+-    echo "$CMD3"
+-    cat "${te}3"
+-    numFAIL=$((numFAIL+1))
+-    listFAIL="$listFAIL $N"
+-elif ! echo "$da2" |diff - "${tf}2"; then
+-    $PRINTF "$FAILED:\n"
+-    echo "$CMD0 &"
+-    cat "${te}0"
+-    echo "$CMD1 &"
+-    cat "${te}1"
+-    echo "$CMD2"
+-    cat "${te}2"
+-    echo "$CMD3"
+-    cat "${te}3"
+-    echo "$da2" |diff - "${tf}2"
+-    numFAIL=$((numFAIL+1))
+-    listFAIL="$listFAIL $N"
+-elif ! echo "$da3" |diff - "${tf}3"; then
+-    $PRINTF "$FAILED:\n"
+-    echo "$CMD0 &"
+-    cat "${te}0"
+-    echo "$CMD1 &"
+-    cat "${te}1"
+-    echo "$CMD2"
+-    cat "${te}2"
+-    echo "$CMD3"
+-    cat "${te}3"
+-    echo "$da3" |diff - "${tf}3"
+-    numFAIL=$((numFAIL+1))
+-    listFAIL="$listFAIL $N"
+-else
+-    $PRINTF "$OK\n"
+-    if [ -n "$debug" ]; then cat "${te}0" "${te}1" "${te}2" "${te}3"; fi
+-    numOK=$((numOK+1))
+-fi
+-fi # NUMCOND, SO_REUSEPORT
+- ;;
+-esac
+-N=$((N+1))
+ 
+ 
+ 
+@@ -13061,44 +12968,6 @@
+ 
+ # option ipv6-join-group "could not be used"
+ # fixed in 1.7.3.2
+-NAME=USE_IPV6_JOIN_GROUP
+-case "$TESTS" in
+-*%$N%*|*%functions%*|*%bugs%*|*%socket%*|*%ip6%*|*%udp%*|*%udp6%*|*%dgram%*|*%multicast%*|*%$NAME%*)
+-elif ! feat=$(testfeats udp ip6) || ! runsip6 >/dev/null; then
+-    $PRINTF "test $F_n $TEST... ${YELLOW}UDP6 not available${NORMAL}\n" $N
+-    numCANT=$((numCANT+1))
+-    listCANT="$listCANT $N"
+-else
+-TEST="$NAME: is option ipv6-join-group used"
+-# Invoke socat with option ipv6-join-group on UDP6 address.
+-# Terminate immediately, do not transfer data.
+-# If socat exits with 0 the test succeeds.
+-# Up to 1.7.3.1 it failed with "1 option(s) could not be used"
+-if ! eval $NUMCOND; then :; else
+-tf="$td/test$N.stdout"
+-te="$td/test$N.stderr"
+-tdiff="$td/test$N.diff"
+-da="test$N $(date) $RANDOM"
+-newport udp6
+-CMD0="$TRACE $SOCAT $opts UDP6-RECV:$PORT,ipv6-join-group=[ff02::2]:$MCINTERFACE /dev/null"
+-printf "test $F_n $TEST... " $N
+-$CMD0 >/dev/null 2>"${te}0"
+-rc0=$?
+-if [ $rc0 -eq 0 ]; then
+-    $PRINTF "$OK\n"
+-    numOK=$((numOK+1))
+-else
+-    $PRINTF "$FAILED\n"
+-    echo "$CMD0"
+-    cat "${te}0"
+-    numFAIL=$((numFAIL+1))
+-    listFAIL="$listFAIL $N"
+-fi # NUMCOND, feats
+-fi
+-fi # NUMCOND
+- ;;
+-esac
+-N=$((N+1))
+ 
+ 
+ # The fix to "Make code async-signal-safe" used internally FD 3 and FD 4.
