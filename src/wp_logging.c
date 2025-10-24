@@ -229,7 +229,7 @@ static void wolfprovider_log(const int logLevel, const int component,
 #elif defined(WOLFPROV_LOG_FILE)
         {
             /* Persistent file handle for logging to file */
-            static XFILE* logFileHandle = NULL;
+            static XFILE logFileHandle = NULL;
             /* Flag to track if we've already reported file open failure to avoid spam */
             static int logFileErrorReported = 0;
 

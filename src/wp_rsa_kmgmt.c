@@ -2077,19 +2077,26 @@ static int wp_rsa_pss_get_params(wp_Rsa* rsa, unsigned char* data, word32 len)
     word32 idx = 0;
     wp_RsaPssParams* pss = &rsa->pssParams;
 
+    WOLFPROV_MSG(WP_LOG_COMP_RSA, "wp_rsa_pss_get_params: len=%u", len);
+    
     ok = wp_rsa_find_oid(data, len, rsa_pkcs1_oid, RSA_PKCS1_OID_SZ, &idx);
     if (ok) {
+        WOLFPROV_MSG(WP_LOG_COMP_RSA, "Found RSA PKCS#1 OID at idx=%u", idx);
         /* Step over PSS algorithm. */
         idx += 11;
 
         if (data[idx] != 0x30) {
+            WOLFPROV_MSG(WP_LOG_COMP_RSA, "Expected SEQUENCE (0x30) at idx=%u, got 0x%02x", idx, data[idx]);
             ok = 0;
         }
         else {
             idx += 2;
         }
+    } else {
+        WOLFPROV_MSG(WP_LOG_COMP_RSA, "RSA PKCS#1 OID not found");
     }
     if (ok && (data[idx] == 0xa0)) {
+        WOLFPROV_MSG(WP_LOG_COMP_RSA, "Found PSS parameters at idx=%u", idx);
         /* Hash algorithm */
         if (XMEMCMP(data + idx, sha256AlgId, sizeof(sha256AlgId)) == 0) {
             pss->hashType = WC_HASH_TYPE_SHA256;
@@ -2192,6 +2199,9 @@ static int wp_rsa_pss_get_params(wp_Rsa* rsa, unsigned char* data, word32 len)
         pss->derTrailer = 1;
         /* PSS parameters have been seen and set. */
         rsa->pssDefSet = 1;
+        WOLFPROV_MSG(WP_LOG_COMP_RSA, "PSS parameters successfully parsed");
+    } else {
+        WOLFPROV_MSG(WP_LOG_COMP_RSA, "Failed to parse PSS parameters");
     }
 
     return ok;
@@ -2221,18 +2231,33 @@ static int wp_rsa_decode_spki(wp_Rsa* rsa, unsigned char* data, word32 len)
     if (ok) {
         rc = wc_RsaPublicKeyDecode(data, &idx, &rsa->key, len);
         if (rc != 0) {
+            WOLFPROV_MSG(WP_LOG_COMP_RSA, "wc_RsaPublicKeyDecode failed with rc=%d", rc);
             ok = 0;
         }
     }
     if (ok && !wp_rsa_determine_type(rsa, data, len)) {
+        WOLFPROV_MSG(WP_LOG_COMP_RSA, "wp_rsa_determine_type failed");
         ok = 0;
     }
     if (ok && (rsa->type == RSA_FLAG_TYPE_RSASSAPSS)) {
+        WOLFPROV_MSG(WP_LOG_COMP_RSA, "RSA-PSS key detected, attempting to get PSS params");
         /* We need to check for pss params to allow a rejection for non-pkcs8
          * keys. If we dont reject then the keytype gets set to RSA-PSS
          * which is wrong. For non-pkcs8 fail here for PSS decoder
          * and let the base RSA pick it up instead */
         ok = wp_rsa_pss_get_params(rsa, data, len);
+        if (!ok) {
+            WOLFPROV_MSG(WP_LOG_COMP_RSA, "wp_rsa_pss_get_params failed - PSS params not found, using defaults");
+            /* Set default PSS parameters when none are provided */
+            rsa->pssParams.hashType = WC_HASH_TYPE_SHA256;
+            XSTRNCPY(rsa->pssParams.mdName, "SHA256", sizeof(rsa->pssParams.mdName));
+            rsa->pssParams.mgf = WC_MGF1SHA256;
+            XSTRNCPY(rsa->pssParams.mgfMdName, "SHA256", sizeof(rsa->pssParams.mgfMdName));
+            rsa->pssParams.saltLen = -1; /* Maximum salt length */
+            rsa->pssParams.derTrailer = 1;
+            rsa->pssDefSet = 1;
+            ok = 1; /* Continue with default parameters */
+        }
     }
     if (ok) {
         rsa->bits = wc_RsaEncryptSize(&rsa->key) * 8;
