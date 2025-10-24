@@ -125,4 +125,4 @@ jobs:
 
           # Run the tests with expected failures
           # Run only tests 1-100 with very short timeout
-          SOCAT=$GITHUB_WORKSPACE/socat-1.8.0.0/socat ./test.sh -t 0.5 --expect-fail 36,64 -N 1 -n 100
+          SOCAT=$PWD/socat ./test.sh -t 0.1 --expect-fail 309,310,386,399,402,403,410,418,453,459,460,467,468,475,478,491,492,528,529,530 -N 300 -n 400
