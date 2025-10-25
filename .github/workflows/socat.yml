@@ -40,6 +40,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        socat_ref: [ 'socat-1.8.0.0' ]
         wolfssl_ref: [ 'v5.8.2-stable' ]
         openssl_ref: [ 'openssl-3.5.2' ]
         fips_ref: [ 'FIPS', 'non-FIPS' ]
@@ -100,10 +101,10 @@ jobs:
             clang libc++-dev curl net-tools netcat-openbsd procps
 
       - name: Download socat
-        run: curl -O http://www.dest-unreach.org/socat/download/socat-1.8.0.0.tar.gz && tar xvf socat-1.8.0.0.tar.gz
+        run: curl -O http://www.dest-unreach.org/socat/download/socat-${{ matrix.socat_ref }}.tar.gz && tar xvf socat-${{ matrix.socat_ref }}.tar.gz
 
       - name: Build socat
-        working-directory: ./socat-1.8.0.0
+        working-directory: ./${{ matrix.socat_ref }}
         run: |
           # Configure with OpenSSL
           ./configure
@@ -116,7 +117,7 @@ jobs:
           patch -p0 < $GITHUB_WORKSPACE/test-patch.patch
 
       - name: Run socat tests
-        working-directory: ./socat-1.8.0.0
+        working-directory: ./${{ matrix.socat_ref }}
         shell: bash
         env:
           SHELL: /bin/bash
@@ -134,12 +135,6 @@ jobs:
 
           set +e
           # Run the tests with expected failures
-          if ${{ matrix.force_fail }} == "WOLFPROV_FORCE_FAIL=1"; then
-            SOCAT=$GITHUB_WORKSPACE/socat-1.8.0.0/socat ./test.sh -t 0.5 --expect-fail 36,64,146,214,216,217,309,310,384,397,400,401,407,408,415,416,450,451,457,458,465,466,473,475,476,489,490,525,526,527,528 
-            TEST_RESULT=$?
-          else
-            SOCAT=$GITHUB_WORKSPACE/socat-1.8.0.0/socat ./test.sh -t 0.5 --expect-fail 36,64,146,214,216,217,309,310,386,399,402,403,408,409,410,416,417,418,451,452,453,459,460,467,468,475,476,478,491,492,526,527,528,529,530
-            TEST_RESULT=$?
-          fi
-
+          SOCAT=$GITHUB_WORKSPACE/${{ matrix.socat_ref }}/socat ./test.sh -t 0.5 --expect-fail 36,64,146,214,216,217,309,310,386,399,402,403,408,409,410,416,417,418,451,452,453,459,460,467,468,475,476,477,478,491,492,526,527,528,529,530
+          TEST_RESULT=$?
           $GITHUB_WORKSPACE/.github/scripts/check-workflow-result.sh $TEST_RESULT ${{ matrix.force_fail }} socat
