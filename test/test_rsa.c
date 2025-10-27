@@ -358,6 +358,7 @@ static int test_rsa_sign_verify_pad(int padMode, const EVP_MD *md,
     int err;
     int res;
     EVP_PKEY *pkey = NULL;
+    EVP_PKEY *pkey_wp = NULL; /* Separate key for wolfProvider */
 #if OPENSSL_VERSION_NUMBER >= 0x30000000L
     const RSA *rsaKey = NULL;
 #else
@@ -368,12 +369,21 @@ static int test_rsa_sign_verify_pad(int padMode, const EVP_MD *md,
     size_t bufLen = 20;
     unsigned char *buf = NULL;
     const unsigned char *p = rsa_key_der_2048;
+    const unsigned char *p_wp = rsa_key_der_2048;
     const char *md_name = NULL;
 
-    PRINT_MSG("Load RSA key");
+    PRINT_MSG("Load RSA key for OpenSSL");
     pkey = d2i_PrivateKey_ex(EVP_PKEY_RSA, NULL, &p, sizeof(rsa_key_der_2048),
         osslLibCtx, NULL);
     err = pkey == NULL;
+    
+    /* Load separate key for wolfProvider to avoid BIGNUM conversion issues */
+    if (err == 0) {
+        PRINT_MSG("Load RSA key for wolfProvider");
+        pkey_wp = d2i_PrivateKey_ex(EVP_PKEY_RSA, NULL, &p_wp, sizeof(rsa_key_der_2048),
+            wpLibCtx, NULL);
+        err = pkey_wp == NULL;
+    }
 
     if (err == 0) {
         rsaKey = EVP_PKEY_get0_RSA(pkey);
@@ -413,13 +423,13 @@ static int test_rsa_sign_verify_pad(int padMode, const EVP_MD *md,
     }
     if ((err == 0) && (padMode != RSA_PKCS1_PSS_PADDING)) {
         PRINT_MSG("Verify with wolfprovider");
-        err = test_pkey_verify(pkey, wpLibCtx, buf, bufLen, rsaSig, rsaSigLen,
+        err = test_pkey_verify(pkey_wp, wpLibCtx, buf, bufLen, rsaSig, rsaSigLen,
             padMode, md, mgf1Md);
     }
     if ((err == 0) && (padMode != RSA_PKCS1_PSS_PADDING)) {
         PRINT_MSG("Verify bad signature with wolfprovider");
         rsaSig[1] ^= 0x80;
-        res = test_pkey_verify(pkey, wpLibCtx, buf, bufLen, rsaSig, rsaSigLen,
+        res = test_pkey_verify(pkey_wp, wpLibCtx, buf, bufLen, rsaSig, rsaSigLen,
             padMode, md, mgf1Md);
         if (res != 1)
             err = 1;
@@ -427,7 +437,7 @@ static int test_rsa_sign_verify_pad(int padMode, const EVP_MD *md,
     if ((err == 0) && (padMode != RSA_PKCS1_PSS_PADDING)) {
         PRINT_MSG("Sign with wolfprovider");
         rsaSigLen = RSA_size(rsaKey);
-        err = test_pkey_sign(pkey, wpLibCtx, buf, bufLen, rsaSig, &rsaSigLen,
+        err = test_pkey_sign(pkey_wp, wpLibCtx, buf, bufLen, rsaSig, &rsaSigLen,
             padMode, md, mgf1Md);
     }
     if ((err == 0) && (padMode != RSA_PKCS1_PSS_PADDING)) {
@@ -449,13 +459,13 @@ static int test_rsa_sign_verify_pad(int padMode, const EVP_MD *md,
     }
     if ((err == 0) && (padMode != RSA_NO_PADDING)) {
         PRINT_MSG("Verify with wolfprovider");
-        err = test_digest_verify(pkey, wpLibCtx, buf, bufLen, md_name, mgf1Md,
+        err = test_digest_verify(pkey_wp, wpLibCtx, buf, bufLen, md_name, mgf1Md,
             rsaSig, rsaSigLen, padMode, saltlen);
     }
     if ((err == 0) && (padMode != RSA_NO_PADDING)) {
         PRINT_MSG("Verify bad signature with wolfprovider");
         rsaSig[1] ^= 0x80;
-        res = test_digest_verify(pkey, wpLibCtx, buf, bufLen, md_name, mgf1Md,
+        res = test_digest_verify(pkey_wp, wpLibCtx, buf, bufLen, md_name, mgf1Md,
             rsaSig, rsaSigLen, padMode, saltlen);
         if (res != 1)
             err = 1;
@@ -463,7 +473,7 @@ static int test_rsa_sign_verify_pad(int padMode, const EVP_MD *md,
     if ((err == 0) && (padMode != RSA_NO_PADDING)) {
         PRINT_MSG("Sign with wolfprovider");
         rsaSigLen = RSA_size(rsaKey);
-        err = test_digest_sign(pkey, wpLibCtx, buf, bufLen, md_name, mgf1Md,
+        err = test_digest_sign(pkey_wp, wpLibCtx, buf, bufLen, md_name, mgf1Md,
             rsaSig, &rsaSigLen, padMode, saltlen);
     }
     if ((err == 0) && (padMode != RSA_NO_PADDING)) {
@@ -474,6 +484,7 @@ static int test_rsa_sign_verify_pad(int padMode, const EVP_MD *md,
 #endif
 
     EVP_PKEY_free(pkey);
+    EVP_PKEY_free(pkey_wp);
     if (rsaSig) {
         OPENSSL_free(rsaSig);
     }
