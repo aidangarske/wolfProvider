@@ -371,7 +371,8 @@ static int test_rsa_sign_verify_pad(int padMode, const EVP_MD *md,
     const char *md_name = NULL;
 
     PRINT_MSG("Load RSA key");
-    pkey = d2i_PrivateKey(EVP_PKEY_RSA, NULL, &p, sizeof(rsa_key_der_2048));
+    pkey = d2i_PrivateKey_ex(EVP_PKEY_RSA, NULL, &p, sizeof(rsa_key_der_2048),
+        osslLibCtx, NULL);
     err = pkey == NULL;
 
     if (err == 0) {
