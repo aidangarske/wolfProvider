@@ -39,23 +39,43 @@ int wp_mp_read_unsigned_bin_le(mp_int* mp, const unsigned char* data,
     size_t len)
 {
     int ok = 1;
-    unsigned char rdata[1024];
+    unsigned char* rdata = NULL;
     size_t i;
     int rc;
 
     WOLFPROV_ENTER(WP_LOG_COMP_PROVIDER, "wp_mp_read_unsigned_bin_le");
 
-    /* Make big-endian. */
-    for (i = 0; i < len; i++) {
-        rdata[i] = data[len - 1 - i];
-    }
-
-    /* Read big-endian data in. */
-    rc = mp_read_unsigned_bin(mp, rdata, (word32)len);
-    if (rc != 0) {
-        WOLFPROV_MSG_DEBUG_RETCODE(WP_LOG_LEVEL_DEBUG, "mp_read_unsigned_bin", rc);
+    /* Validate input to prevent buffer overruns */
+    if (len > 10240) { /* Sanity check: 10KB max for RSA keys */
+        WOLFPROV_MSG(WP_LOG_COMP_PROVIDER, "Input data too large: %zu bytes", len);
         ok = 0;
     }
+
+    /* Allocate buffer for byte reversal. Use dynamic allocation to support
+     * large RSA keys and prevent stack buffer overruns. */
+    if (ok && len > 0) {
+        rdata = (unsigned char*)OPENSSL_malloc(len);
+        if (rdata == NULL) {
+            WOLFPROV_MSG(WP_LOG_COMP_PROVIDER, "Failed to allocate buffer");
+            ok = 0;
+        }
+    }
+
+    if (ok && len > 0) {
+        /* Make big-endian. */
+        for (i = 0; i < len; i++) {
+            rdata[i] = data[len - 1 - i];
+        }
+
+        /* Read big-endian data in. */
+        rc = mp_read_unsigned_bin(mp, rdata, (word32)len);
+        if (rc != 0) {
+            WOLFPROV_MSG_DEBUG_RETCODE(WP_LOG_LEVEL_DEBUG, "mp_read_unsigned_bin", rc);
+            ok = 0;
+        }
+    }
+
+    OPENSSL_free(rdata);
 
     WOLFPROV_LEAVE(WP_LOG_COMP_PROVIDER, __FILE__ ":" WOLFPROV_STRINGIZE(__LINE__), ok);
     return ok;
