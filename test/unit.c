@@ -666,10 +666,18 @@ int main(int argc, char* argv[])
         err = run_tests(runAll);
     }
 
-    OSSL_PROVIDER_unload(osslProv);
-    OSSL_LIB_CTX_free(osslLibCtx);
-    OSSL_PROVIDER_unload(wpProv);
-    OSSL_LIB_CTX_free(wpLibCtx);
+    if (osslProv != NULL) {
+        OSSL_PROVIDER_unload(osslProv);
+    }
+    if (osslLibCtx != NULL) {
+        OSSL_LIB_CTX_free(osslLibCtx);
+    }
+    if (wpProv != NULL) {
+        OSSL_PROVIDER_unload(wpProv);
+    }
+    if (wpLibCtx != NULL) {
+        OSSL_LIB_CTX_free(wpLibCtx);
+    }
 
     OPENSSL_cleanup();
 
