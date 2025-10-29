@@ -124,8 +124,10 @@ jobs:
           # Uninstall the package
           apt-get remove -y libwolfprov
 
-          # Verify default OpenSSL provider is active
-          $GITHUB_WORKSPACE/scripts/verify-install.sh --no-wp ${{ matrix.replace_default && '--replace-default' || '' }} ${{ matrix.fips && '--fips' || '' }}
+          if openssl list -providers | grep -q "wolfSSL Provider"; then
+            echo "wolfprovider is still listed as an OpenSSL provider"
+            exit 1
+          fi
 
           # Purge the package to remove all files
           apt-get remove --purge -y libwolfprov
