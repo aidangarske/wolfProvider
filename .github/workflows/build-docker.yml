@@ -1,12 +1,23 @@
 name: Build and Push Docker Image
 
+# START OF COMMON SECTION
 on:
   push:
+    branches: [ 'master', 'main', 'release/**' ]
+    paths:
+      - '.github/scripts/docker/Dockerfile'
+      - '.github/workflows/build-docker.yml'
+  pull_request:
     branches: [ '*' ]
     paths:
       - '.github/scripts/docker/Dockerfile'
       - '.github/workflows/build-docker.yml'
   workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+# END OF COMMON SECTION
 
 jobs:
   build-and-push:
@@ -30,7 +41,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/wolfSSL/build-wolfprovider
+          images: ghcr.io/${{ github.repository_owner }}/build-wolfprovider-debian
           tags: |
             type=raw,value=bookworm
             type=raw,value=latest
