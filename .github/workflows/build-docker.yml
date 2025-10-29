@@ -30,7 +30,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/${{ github.repository_owner }}/build-wolfprovider
+          images: ghcr.io/wolfSSL/build-wolfprovider
           tags: |
             type=raw,value=bookworm
             type=raw,value=latest
