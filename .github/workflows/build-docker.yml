@@ -3,7 +3,7 @@ name: Build and Push Docker Image
 # START OF COMMON SECTION
 on:
   push:
-    branches: [ 'master', 'main', 'release/**' ]
+    branches: [ '*' ]
     paths:
       - '.github/scripts/docker/Dockerfile'
       - '.github/workflows/build-docker.yml'
