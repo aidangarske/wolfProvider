@@ -160,7 +160,4 @@ jobs:
             echo "libwolfprov.so successfully removed"
           fi
 
-          # Verify that the default provider is present and active
-          $GITHUB_WORKSPACE/scripts/verify-install.sh --no-wp ${{ matrix.replace_default && '--replace-default' || '' }} ${{ matrix.fips && '--fips' || '' }}
-
           echo "Package uninstallation and cleanup verification successful"

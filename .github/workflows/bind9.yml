@@ -117,7 +117,7 @@ jobs:
           fetch-depth: 1
       - run: |
           cd bind9
-          if [FIPS == "${{ matrix.fips_ref }}" ]; then
+          if [ "${{ matrix.fips_ref }}" = "FIPS" ]; then
             patch -p1 < $GITHUB_WORKSPACE/osp/wolfProvider/bind9/bind9-${{ matrix.bind_ref }}-wolfprov-fips.patch
           else
             patch -p1 < $GITHUB_WORKSPACE/osp/wolfProvider/bind9/bind9-${{ matrix.bind_ref }}-wolfprov.patch
