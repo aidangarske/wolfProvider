@@ -25,7 +25,7 @@ jobs:
     # We are using this container to avoid having to install all the dependencies on the host machine 
     # and speed up the build process.
     container:
-      image: ghcr.io/wolfssl/build-wolfprovider-debian:bookworm
+      image: ghcr.io/aidangarske/build-wolfprovider-debian:bookworm
       env:
         DEBIAN_FRONTEND: noninteractive
       # Add network capabilities so ifconfig/RTNETLINK operations are permitted
