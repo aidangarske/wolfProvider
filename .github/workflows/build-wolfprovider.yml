@@ -26,7 +26,7 @@ jobs:
     # and speed up the build process.
     # TODO: Switch from aidangarske fork to main WP repo for the build container.
     container:
-      image: ghcr.io/aidangarske/wolfprovider-build:bookworm
+      image: ghcr.io/wolfssl/wolfprovider:bookworm
       env:
         DEBIAN_FRONTEND: noninteractive
       # Add network capabilities so ifconfig/RTNETLINK operations are permitted
