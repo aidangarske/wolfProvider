@@ -3,7 +3,7 @@ name: Debian Package Test
 # START OF COMMON SECTION
 on:
   push:
-    branches: [ 'master', 'main', 'release/**' ]
+    branches: [ '*' ]
   pull_request:
     branches: [ '*' ]
 
@@ -27,9 +27,11 @@ jobs:
         fips_ref: [ 'FIPS', 'non-FIPS' ]
         replace_default: [ true, false ]
 
-  libwolfprov-replace-default:
+  libwolfprov_test:
     runs-on: ubuntu-22.04
     needs: build_wolfprovider
+    name: |
+      wolfProvider Test ${{ matrix.replace_default && 'replace-default' || '' }}
     # Run inside Debian Bookworm to match packaging environment
     container:
       image: debian:bookworm

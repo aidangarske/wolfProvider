@@ -21,14 +21,9 @@ jobs:
   build_wolfprovider_common:
     name: Build wolfProvider
     runs-on: ubuntu-22.04
-    # Grant permissions to read packages from ghcr.io
-    permissions:
-      contents: read
-      packages: read
     # Run inside Debian Bookworm using container from ghcr.io/wolfssl/build-wolfprovider-debian:bookworm
     # We are using this container to avoid having to install all the dependencies on the host machine 
     # and speed up the build process.
-    # Note: Docker image paths must be lowercase even though the GitHub org is wolfSSL
     container:
       image: ghcr.io/wolfssl/build-wolfprovider-debian:bookworm
       env:
@@ -64,6 +59,8 @@ jobs:
             fips
             nonfips
             openssl
+            openssl/debs-default
+            openssl/debs-replace-default
           sparse-checkout-cone-mode: false
           path: ${{ env.DEBS_PATH }}
 
@@ -75,6 +72,26 @@ jobs:
 
           echo "Available packages in debs branch:"
           ls -la ${{ env.DEBS_PATH }}/
+
+          echo "Checking openssl directory structure:"
+          if [ -d "${{ env.DEBS_PATH }}/openssl" ]; then
+            ls -la ${{ env.DEBS_PATH }}/openssl/
+            if [ -d "${{ env.DEBS_PATH }}/openssl/debs-default" ]; then
+              echo "Found openssl/debs-default directory"
+              ls -la ${{ env.DEBS_PATH }}/openssl/debs-default/ || echo "debs-default is empty or has issues"
+            else
+              echo "WARNING: openssl/debs-default directory does not exist"
+            fi
+            if [ -d "${{ env.DEBS_PATH }}/openssl/debs-replace-default" ]; then
+              echo "Found openssl/debs-replace-default directory"
+              ls -la ${{ env.DEBS_PATH }}/openssl/debs-replace-default/ || echo "debs-replace-default is empty or has issues"
+            else
+              echo "WARNING: openssl/debs-replace-default directory does not exist"
+            fi
+          else
+            echo "ERROR: openssl directory does not exist in debs branch"
+            exit 1
+          fi
 
           # Copy packages based on build type
           if [ "${{ inputs.fips_ref }}" = "FIPS" ]; then
@@ -100,14 +117,16 @@ jobs:
               echo "Copying OpenSSL replace-default packages..."
               cp ${{ env.DEBS_PATH }}/openssl/debs-replace-default/*.deb ${{ env.OPENSSL_PACKAGES_PATH }}/
             else
-              echo "WARNING: No OpenSSL replace-default packages found in debs branch"
+              echo "ERROR: No OpenSSL replace-default packages found in debs branch"
+              exit 1
             fi
           else
             if [ -d "${{ env.DEBS_PATH }}/openssl/debs-default" ] && [ "$(ls -A ${{ env.DEBS_PATH }}/openssl/debs-default/*.deb 2>/dev/null)" ]; then
               echo "Copying OpenSSL default packages..."
               cp ${{ env.DEBS_PATH }}/openssl/debs-default/*.deb ${{ env.OPENSSL_PACKAGES_PATH }}/
             else
-              echo "WARNING: No OpenSSL default packages found in debs branch"
+              echo "ERROR: No OpenSSL default packages found in debs branch"
+              exit 1
             fi
           fi
 
