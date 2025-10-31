@@ -21,6 +21,10 @@ jobs:
   build_wolfprovider_common:
     name: Build wolfProvider
     runs-on: ubuntu-22.04
+    # Grant permissions to read packages from ghcr.io
+    permissions:
+      contents: read
+      packages: read
     # Run inside Debian Bookworm using container from ghcr.io/wolfssl/build-wolfprovider-debian:bookworm
     # We are using this container to avoid having to install all the dependencies on the host machine 
     # and speed up the build process.
