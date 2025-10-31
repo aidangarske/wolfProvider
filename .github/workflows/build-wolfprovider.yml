@@ -164,6 +164,36 @@ jobs:
           echo ""
           echo "wolfSSL:"
           dpkg -l | grep wolfssl || echo "  No wolfSSL packages found"
+          
+          # Verify the installed OpenSSL packages match the expected type
+          echo ""
+          echo "Verifying installed OpenSSL package type..."
+          openssl_version_output=$(openssl version 2>&1 || echo "ERROR: openssl version failed")
+          echo "OpenSSL version output: $openssl_version_output"
+          
+          if [ "${{ inputs.replace_default }}" = "false" ]; then
+            # When replace_default is false, OpenSSL version should NOT contain "wolfProvider"
+            if echo "$openssl_version_output" | grep -qi "wolfProvider"; then
+              echo "ERROR: OpenSSL packages in debs-default appear to be replace-default packages!"
+              echo "Expected: OpenSSL without wolfProvider in version string"
+              echo "Got: $openssl_version_output"
+              echo "This indicates the packages in openssl/debs-default are incorrectly configured as replace-default."
+              exit 1
+            else
+              echo "SUCCESS: OpenSSL packages appear to be correct (non-replace-default)"
+            fi
+          else
+            # When replace_default is true, OpenSSL version SHOULD contain "wolfProvider"
+            if ! echo "$openssl_version_output" | grep -qi "wolfProvider"; then
+              echo "ERROR: OpenSSL packages in debs-replace-default appear to be non-replace-default packages!"
+              echo "Expected: OpenSSL with wolfProvider in version string"
+              echo "Got: $openssl_version_output"
+              echo "This indicates the packages in openssl/debs-replace-default are incorrectly configured."
+              exit 1
+            else
+              echo "SUCCESS: OpenSSL packages appear to be correct (replace-default)"
+            fi
+          fi
 
       - name: Checkout wolfProvider
         if: steps.check_artifact.outcome != 'success'
