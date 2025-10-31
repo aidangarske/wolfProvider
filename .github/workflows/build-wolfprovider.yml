@@ -90,12 +90,24 @@ jobs:
               exit 1
             fi
           fi
-          # Copy OpenSSL packages
-          if [ -d "${{ env.DEBS_PATH }}/openssl" ] && [ "$(ls -A ${{ env.DEBS_PATH }}/openssl/*.deb 2>/dev/null)" ]; then
-            echo "Copying OpenSSL packages..."
-            cp ${{ env.DEBS_PATH }}/openssl/*.deb ${{ env.OPENSSL_PACKAGES_PATH }}/
+          # Copy OpenSSL packages based on replace_default setting
+          if [ "${{ inputs.replace_default }}" = "true" ]; then
+            if [ -d "${{ env.DEBS_PATH }}/openssl/replace-default" ] && [ "$(ls -A ${{ env.DEBS_PATH }}/openssl/replace-default/*.deb 2>/dev/null)" ]; then
+              echo "Copying OpenSSL replace-default packages..."
+              cp ${{ env.DEBS_PATH }}/openssl/replace-default/*.deb ${{ env.OPENSSL_PACKAGES_PATH }}/
+            else
+              echo "WARNING: No OpenSSL replace-default packages found in debs branch"
+            fi
           else
-            echo "WARNING: No OpenSSL packages found in debs branch"
+            if [ -d "${{ env.DEBS_PATH }}/openssl/non-replace-default" ] && [ "$(ls -A ${{ env.DEBS_PATH }}/openssl/non-replace-default/*.deb 2>/dev/null)" ]; then
+              echo "Copying OpenSSL non-replace-default packages..."
+              cp ${{ env.DEBS_PATH }}/openssl/non-replace-default/*.deb ${{ env.OPENSSL_PACKAGES_PATH }}/
+            elif [ -d "${{ env.DEBS_PATH }}/openssl" ] && [ "$(ls -A ${{ env.DEBS_PATH }}/openssl/*.deb 2>/dev/null)" ]; then
+              echo "Copying OpenSSL packages (fallback to openssl/ directory)..."
+              cp ${{ env.DEBS_PATH }}/openssl/*.deb ${{ env.OPENSSL_PACKAGES_PATH }}/
+            else
+              echo "WARNING: No OpenSSL packages found in debs branch"
+            fi
           fi
 
           echo ""
