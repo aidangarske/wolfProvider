@@ -21,11 +21,12 @@ jobs:
   build_wolfprovider_common:
     name: Build wolfProvider
     runs-on: ubuntu-22.04
-    # Run inside Debian Bookworm using container from ghcr.io/wolfSSL/build-wolfprovider-debian:bookworm
+    # Run inside Debian Bookworm using container from ghcr.io/wolfssl/build-wolfprovider-debian:bookworm
     # We are using this container to avoid having to install all the dependencies on the host machine 
     # and speed up the build process.
+    # Note: Docker image paths must be lowercase even though the GitHub org is wolfSSL
     container:
-      image: ghcr.io/wolfSSL/build-wolfprovider-debian:bookworm
+      image: ghcr.io/wolfssl/build-wolfprovider-debian:bookworm
       env:
         DEBIAN_FRONTEND: noninteractive
       # Add network capabilities so ifconfig/RTNETLINK operations are permitted
