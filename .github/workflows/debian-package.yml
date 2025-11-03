@@ -59,7 +59,7 @@ jobs:
       - name: Download packages from build job
         uses: actions/download-artifact@v4
         with:
-          name: debian-packages-${{ matrix.fips_ref }}${{ matrix.replace_default && '-replace-default' || '' }}-${{ matrix.wolfssl_ref }}-${{ matrix.openssl_ref }}
+          name: debian-packages-${{ matrix.fips_ref }}${{ matrix.replace_default && '-replace-default' || '' }}-${{ matrix.wolfssl_ref }}-${{ matrix.openssl_ref }} ${{ matrix.force_fail && '-force-fail' || '' }}
           path: /tmp/packages
 
       - name: Setup package directories
