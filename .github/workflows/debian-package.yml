@@ -28,6 +28,7 @@ jobs:
         replace_default: [ true, false ]
 
   libwolfprov-replace-default:
+    name: libwolfprov ${{ matrix.replace_default && 'replace-default' || 'standalone' }} ${{ matrix.fips_ref }}
     runs-on: ubuntu-22.04
     needs: build_wolfprovider
     # Run inside Debian Bookworm to match packaging environment

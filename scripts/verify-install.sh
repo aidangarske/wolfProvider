@@ -200,7 +200,7 @@ verify_wolfprovider() {
     local replace_default="$2"
     local no_wp="$3"
 
-    is_openssl_replace_default=$(echo "$openssl_version" | grep -qi "wolfProvider" && echo 1 || echo 0)
+    is_openssl_replace_default=$(echo "$openssl_version" | grep -qi "wolfProvider-replace-default" && echo 1 || echo 0)
     is_openssl_default_provider=$(echo "$openssl_providers" | grep -qi "OpenSSL Default Provider" && echo 1 || echo 0)
 
     is_wp_active=$(echo "$openssl_providers" | grep -qi "wolfSSL Provider" && echo 1 || echo 0)
