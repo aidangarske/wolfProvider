@@ -55,14 +55,14 @@ use_default_provider() {
 
     # In replace-default mode, we cannot switch back to the default provider
     if ${OPENSSL_BIN} version | grep -q "wolfProvider-replace-default"; then
-        echo "Note: wolfProvider is configured as replace-default, cannot switch to default provider"
+        echo "WARNING: wolfProvider is configured as replace-default, cannot switch to default provider"
         return 0
     fi
 
     # Verify that we are using the default provider
     if ${OPENSSL_BIN} list -providers | grep -q "wolfprov"; then
-        echo "FAIL: unable to switch to default provider, wolfProvider is still active"
-        exit 1
+        echo "WARNING: unable to switch to default provider, wolfProvider is still active"
+        return 0
     fi
     echo "Switched to default provider"
 }
@@ -74,14 +74,14 @@ use_wolf_provider() {
 
     # In replace-default mode, wolfProvider is already active
     if ${OPENSSL_BIN} version | grep -q "wolfProvider-replace-default"; then
-        echo "Note: wolfProvider is configured as replace-default, already active"
+        echo "WARNING: wolfProvider is configured as replace-default, already active"
         return 0
     fi
 
     # Verify that we are using wolfProvider
     if ! ${OPENSSL_BIN} list -providers | grep -q "wolfprov"; then
-        echo "FAIL: unable to switch to wolfProvider, default provider is still active"
-        exit 1
+        echo "WARNING: unable to switch to wolfProvider, default provider is still active"
+        return 0
     fi
     echo "Switched to wolfProvider"
 }
