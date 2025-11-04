@@ -54,18 +54,11 @@ use_default_provider() {
     unset OPENSSL_CONF
 
     # Verify that we are using the default provider
-    if ${OPENSSL_BIN} list -providers | grep -q "wolfprov"; then
-        if [ "${WOLFPROV_DEBIAN}" = "1" ]; then
-            if [ "${WOLFPROV_REPLACE_DEFAULT}" = "1" ]; then
-                echo "WARNING: wolfProvider is configured as replace-default, cannot switch to default provider"
-                return 0
-            fi
-        else
-            echo "WARNING: wolfProvider is configured as debian, cannot switch to default provider"
-            return 0
+    if [ "${WOLFPROV_DEBIAN}" != "1" ]; then
+        if ${OPENSSL_BIN} list -providers | grep -q "wolfprov"; then
+            echo "FAIL: unable to switch to default provider, wolfProvider is still active"
+            exit 1
         fi
-        echo "FAIL: unable to switch to default provider, wolfProvider is still active"
-        exit 1
     fi
     echo "Switched to default provider"
 }
@@ -75,21 +68,14 @@ use_wolf_provider() {
     export OPENSSL_MODULES=$WOLFPROV_PATH
     export OPENSSL_CONF=${WOLFPROV_CONFIG}
 
-    # Verify that we are using the default provider
-    if ${OPENSSL_BIN} list -providers | grep -q "wolfprov"; then
-        if [ "${WOLFPROV_DEBIAN}" = "1" ]; then
-            if [ "${WOLFPROV_REPLACE_DEFAULT}" = "1" ]; then
-                echo "WARNING: wolfProvider is configured as replace-default, cannot switch to default provider"
-                return 0
-            fi
-        else
-            echo "WARNING: wolfProvider is configured as debian, cannot switch to default provider"
-            return 0
+    # Verify that we are using wolfProvider
+    if [ "${WOLFPROV_DEBIAN}" != "1" ]; then
+        if ! ${OPENSSL_BIN} list -providers | grep -q "wolfprov"; then
+            echo "FAIL: unable to switch to wolfProvider, default provider is still active"
+            exit 1
         fi
-        echo "FAIL: unable to switch to default provider, wolfProvider is still active"
-        exit 1
     fi
-    echo "Switched to default provider"
+    echo "Switched to wolfProvider"
 }
 
 # Helper function to handle force fail checks
