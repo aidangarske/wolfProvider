@@ -53,16 +53,19 @@ use_default_provider() {
     unset OPENSSL_MODULES
     unset OPENSSL_CONF
 
-    # In replace-default mode, we cannot switch back to the default provider
-    if ${OPENSSL_BIN} version | grep -q "wolfProvider-replace-default"; then
-        echo "WARNING: wolfProvider is configured as replace-default, cannot switch to default provider"
-        return 0
-    fi
-
     # Verify that we are using the default provider
     if ${OPENSSL_BIN} list -providers | grep -q "wolfprov"; then
-        echo "WARNING: unable to switch to default provider, wolfProvider is still active"
-        return 0
+        if [ "${WOLFPROV_DEBIAN}" = "1" ]; then
+            if [ "${WOLFPROV_REPLACE_DEFAULT}" = "1" ]; then
+                echo "WARNING: wolfProvider is configured as replace-default, cannot switch to default provider"
+                return 0
+            fi
+        else
+            echo "WARNING: wolfProvider is configured as debian, cannot switch to default provider"
+            return 0
+        fi
+        echo "FAIL: unable to switch to default provider, wolfProvider is still active"
+        exit 1
     fi
     echo "Switched to default provider"
 }
@@ -72,18 +75,21 @@ use_wolf_provider() {
     export OPENSSL_MODULES=$WOLFPROV_PATH
     export OPENSSL_CONF=${WOLFPROV_CONFIG}
 
-    # In replace-default mode, wolfProvider is already active
-    if ${OPENSSL_BIN} version | grep -q "wolfProvider-replace-default"; then
-        echo "WARNING: wolfProvider is configured as replace-default, already active"
-        return 0
+    # Verify that we are using the default provider
+    if ${OPENSSL_BIN} list -providers | grep -q "wolfprov"; then
+        if [ "${WOLFPROV_DEBIAN}" = "1" ]; then
+            if [ "${WOLFPROV_REPLACE_DEFAULT}" = "1" ]; then
+                echo "WARNING: wolfProvider is configured as replace-default, cannot switch to default provider"
+                return 0
+            fi
+        else
+            echo "WARNING: wolfProvider is configured as debian, cannot switch to default provider"
+            return 0
+        fi
+        echo "FAIL: unable to switch to default provider, wolfProvider is still active"
+        exit 1
     fi
-
-    # Verify that we are using wolfProvider
-    if ! ${OPENSSL_BIN} list -providers | grep -q "wolfprov"; then
-        echo "WARNING: unable to switch to wolfProvider, default provider is still active"
-        return 0
-    fi
-    echo "Switched to wolfProvider"
+    echo "Switched to default provider"
 }
 
 # Helper function to handle force fail checks
