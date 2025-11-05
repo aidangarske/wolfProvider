@@ -338,7 +338,7 @@ for key_type in "${KEY_TYPES[@]}"; do
 
             # If WPFF is set, we need to run again to actually create the 
             # key files
-            if [ $WOLFPROV_FORCE_FAIL -ne 0 ]; then
+            if [ "${WOLFPROV_FORCE_FAIL:-0}" -ne 0 ]; then
                 WOLFPROV_FORCE_FAIL=0
                 generate_and_test_key "$key_type" "$key_size" "$test_provider"
                 WOLFPROV_FORCE_FAIL=1
