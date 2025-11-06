@@ -430,54 +430,91 @@ int test_dh_get_params(void *data)
     EVP_PKEY *keyOpenSSL = NULL;
     EVP_PKEY *keyWolfProvider = NULL;
 
+    PRINT_MSG("ENTER: test_dh_get_params");
+    fflush(stdout);
+
+    // Generate OpenSSL DH keys
+    PRINT_MSG("DEBUG: Creating OpenSSL DH context");
+    fflush(stdout);
     if (err == 0) {
         ctxOpenSSL = EVP_PKEY_CTX_new_from_name(osslLibCtx, "DH", NULL);
         err = ctxOpenSSL == NULL;
+        PRINT_MSG("DEBUG: EVP_PKEY_CTX_new_from_name(osslLibCtx) returned %p, err=%d", ctxOpenSSL, err);
+        fflush(stdout);
     }
     if (err == 0) {
         err = EVP_PKEY_paramgen_init(ctxOpenSSL) != 1;
+        PRINT_MSG("DEBUG: EVP_PKEY_paramgen_init(osslLibCtx) err=%d", err);
+        fflush(stdout);
     }
     if (err == 0) {
         err = EVP_PKEY_CTX_set_dh_paramgen_prime_len(ctxOpenSSL, 2048) != 1;
+        PRINT_MSG("DEBUG: EVP_PKEY_CTX_set_dh_paramgen_prime_len(osslLibCtx, 2048) err=%d", err);
+        fflush(stdout);
     }
     if (err == 0) {
         err = EVP_PKEY_paramgen(ctxOpenSSL, &keyParamsOpenSSL) != 1;
+        PRINT_MSG("DEBUG: EVP_PKEY_paramgen(osslLibCtx) returned keyParamsOpenSSL=%p, err=%d", keyParamsOpenSSL, err);
+        fflush(stdout);
     }
     if (err == 0) {
         EVP_PKEY_CTX_free(ctxOpenSSL);
         ctxOpenSSL = EVP_PKEY_CTX_new_from_pkey(osslLibCtx, keyParamsOpenSSL, NULL);
         err = ctxOpenSSL == NULL;
+        PRINT_MSG("DEBUG: EVP_PKEY_CTX_new_from_pkey(osslLibCtx) returned %p, err=%d", ctxOpenSSL, err);
+        fflush(stdout);
     }
     if (err == 0) {
         err = EVP_PKEY_keygen_init(ctxOpenSSL) != 1;
+        PRINT_MSG("DEBUG: EVP_PKEY_keygen_init(osslLibCtx) err=%d", err);
+        fflush(stdout);
     }
     if (err == 0) {
         err = EVP_PKEY_keygen(ctxOpenSSL, &keyOpenSSL) != 1;
+        PRINT_MSG("DEBUG: EVP_PKEY_keygen(osslLibCtx) returned keyOpenSSL=%p, err=%d", keyOpenSSL, err);
+        fflush(stdout);
     }
 
+    // Generate WolfProvider DH keys
+    PRINT_MSG("DEBUG: Creating WolfProvider DH context");
+    fflush(stdout);
     if (err == 0) {
         ctxWolfProvider = EVP_PKEY_CTX_new_from_name(wpLibCtx, "DH", NULL);
         err = ctxWolfProvider == NULL;
+        PRINT_MSG("DEBUG: EVP_PKEY_CTX_new_from_name(wpLibCtx) returned %p, err=%d", ctxWolfProvider, err);
+        fflush(stdout);
     }
     if (err == 0) {
         err = EVP_PKEY_paramgen_init(ctxWolfProvider) != 1;
+        PRINT_MSG("DEBUG: EVP_PKEY_paramgen_init(wpLibCtx) err=%d", err);
+        fflush(stdout);
     }
     if (err == 0) {
         err = EVP_PKEY_CTX_set_dh_paramgen_prime_len(ctxWolfProvider, 2048) != 1;
+        PRINT_MSG("DEBUG: EVP_PKEY_CTX_set_dh_paramgen_prime_len(wpLibCtx, 2048) err=%d", err);
+        fflush(stdout);
     }
     if (err == 0) {
         err = EVP_PKEY_paramgen(ctxWolfProvider, &keyParamsWolfProvider) != 1;
+        PRINT_MSG("DEBUG: EVP_PKEY_paramgen(wpLibCtx) returned keyParamsWolfProvider=%p, err=%d", keyParamsWolfProvider, err);
+        fflush(stdout);
     }
     if (err == 0) {
         EVP_PKEY_CTX_free(ctxWolfProvider);
         ctxWolfProvider = EVP_PKEY_CTX_new_from_pkey(wpLibCtx, keyParamsWolfProvider, NULL);
         err = ctxWolfProvider == NULL;
+        PRINT_MSG("DEBUG: EVP_PKEY_CTX_new_from_pkey(wpLibCtx) returned %p, err=%d", ctxWolfProvider, err);
+        fflush(stdout);
     }
     if (err == 0) {
         err = EVP_PKEY_keygen_init(ctxWolfProvider) != 1;
+        PRINT_MSG("DEBUG: EVP_PKEY_keygen_init(wpLibCtx) err=%d", err);
+        fflush(stdout);
     }
     if (err == 0) {
         err = EVP_PKEY_keygen(ctxWolfProvider, &keyWolfProvider) != 1;
+        PRINT_MSG("DEBUG: EVP_PKEY_keygen(wpLibCtx) returned keyWolfProvider=%p, err=%d", keyWolfProvider, err);
+        fflush(stdout);
     }
 
     static const OSSL_PARAM gettableParams[] = {
@@ -498,12 +535,19 @@ int test_dh_get_params(void *data)
 
     if (err == 0) {
         int retWolfProvider;
-        unsigned char bufWolfProvider[256];
+        unsigned char bufWolfProvider[4096];  // Increased from 256
         const char* mode;
+        int totalParams = (int)(sizeof(gettableParams)/sizeof(gettableParams[0])) - 1;
 
         OSSL_PARAM paramsWolfProvider[2] = { OSSL_PARAM_END, OSSL_PARAM_END };
 
-        for (int i = 0; i < (int)(sizeof(gettableParams)/sizeof(gettableParams[0])) - 1; i++) {
+        PRINT_MSG("DEBUG: Starting parameter loop - total params: %d", totalParams);
+        fflush(stdout);
+
+        for (int i = 0; i < totalParams; i++) {
+            PRINT_MSG("DEBUG: Testing parameter %d/%d: %s", i+1, totalParams, gettableParams[i].key);
+            fflush(stdout);
+            
             memset(bufWolfProvider, 0, sizeof(bufWolfProvider));
             for (int j = 0; j < 2; j++) {
                 if (j == 0) {
@@ -511,21 +555,28 @@ int test_dh_get_params(void *data)
                     paramsWolfProvider[0] = gettableParams[i];
                     paramsWolfProvider[0].data = NULL;
                     paramsWolfProvider[0].data_size = 0;
+                    PRINT_MSG("DEBUG:   Mode %d: %s - calling EVP_PKEY_get_params", j, mode);
                 }
                 else {
                     mode = "Buffer data";
                     paramsWolfProvider[0] = gettableParams[i];
                     paramsWolfProvider[0].data = bufWolfProvider;
                     paramsWolfProvider[0].data_size = sizeof(bufWolfProvider);
+                    PRINT_MSG("DEBUG:   Mode %d: %s - calling EVP_PKEY_get_params", j, mode);
                 }
+                fflush(stdout);
 
                 retWolfProvider = EVP_PKEY_get_params(keyWolfProvider, paramsWolfProvider);
+                PRINT_MSG("DEBUG:     EVP_PKEY_get_params returned: %d", retWolfProvider);
+                fflush(stdout);
+                
                 if (retWolfProvider != 1) {
                     PRINT_MSG("EVP_PKEY_get_params failed for param %s in mode %s (WolfProvider (%d))",
                             gettableParams[i].key, mode, retWolfProvider);
                     err = 1;
                 }
                 if (err == 0 && paramsWolfProvider[0].data) {
+                    PRINT_MSG("DEBUG:     return_size: %zu", paramsWolfProvider[0].return_size);
                     if (paramsWolfProvider[0].return_size == 0) {
                         PRINT_MSG("EVP_PKEY_get_params did not set return_size for param %s in mode %s (WolfProvider (%d))",
                                 gettableParams[i].key, mode, retWolfProvider);
@@ -533,16 +584,43 @@ int test_dh_get_params(void *data)
                     }
                 }
             }
+            PRINT_MSG("DEBUG: Completed parameter %d: %s", i+1, gettableParams[i].key);
+            fflush(stdout);
         }
+        PRINT_MSG("DEBUG: Parameter loop completed successfully");
+        fflush(stdout);
     }
 
+    PRINT_MSG("DEBUG: Freeing all contexts and keys");
+    fflush(stdout);
+    
     EVP_PKEY_CTX_free(ctxOpenSSL);
+    PRINT_MSG("DEBUG: Freed ctxOpenSSL");
+    fflush(stdout);
+    
     EVP_PKEY_CTX_free(ctxWolfProvider);
+    PRINT_MSG("DEBUG: Freed ctxWolfProvider");
+    fflush(stdout);
+    
     EVP_PKEY_free(keyOpenSSL);
+    PRINT_MSG("DEBUG: Freed keyOpenSSL");
+    fflush(stdout);
+    
     EVP_PKEY_free(keyWolfProvider);
+    PRINT_MSG("DEBUG: Freed keyWolfProvider");
+    fflush(stdout);
+    
     EVP_PKEY_free(keyParamsOpenSSL);
+    PRINT_MSG("DEBUG: Freed keyParamsOpenSSL");
+    fflush(stdout);
+    
     EVP_PKEY_free(keyParamsWolfProvider);
+    PRINT_MSG("DEBUG: Freed keyParamsWolfProvider");
+    fflush(stdout);
 
+    PRINT_MSG("LEAVE: test_dh_get_params - returning %d", err);
+    fflush(stdout);
+    
     return err;
 }
 
