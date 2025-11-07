@@ -1292,6 +1292,8 @@ int test_rsa_load_key(void* data)
     params[0] = OSSL_PARAM_construct_end();
 
     PRINT_MSG("Open RSA private key");
+    fprintf(stderr, "DEBUG: Trying to open: %s\n", CERTS_DIR "/server-key.pem");
+    fprintf(stderr, "DEBUG: CERTS_DIR = %s\n", CERTS_DIR);
     ctx = OSSL_STORE_open_ex(CERTS_DIR "/server-key.pem", wpLibCtx, NULL, NULL,
         NULL, params, NULL, NULL);
     err = ctx == NULL;
@@ -1327,6 +1329,8 @@ int test_rsa_load_cert(void* data)
     params[0] = OSSL_PARAM_construct_end();
 
     PRINT_MSG("Open certificate with RSA public key");
+    fprintf(stderr, "DEBUG: Trying to open: %s\n", CERTS_DIR "/server-cert.pem");
+    fprintf(stderr, "DEBUG: CERTS_DIR = %s\n", CERTS_DIR);
     ctx = OSSL_STORE_open_ex(CERTS_DIR "/server-cert.pem", wpLibCtx, NULL, NULL,
         NULL, params, NULL, NULL);
     err = ctx == NULL;

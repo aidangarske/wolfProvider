@@ -32,6 +32,8 @@ static int test_hkdf_calc(OSSL_LIB_CTX* libCtx, unsigned char *key, int keyLen,
     unsigned char info[32] = { 0, };
     size_t len = keyLen;
 
+    fprintf(stderr, "DEBUG: test_hkdf_calc starting (libCtx=%p, mode=%d)\n", (void*)libCtx, mode);
+
     if (mode == EVP_PKEY_HKDEF_MODE_EXTRACT_ONLY) {
         len = EVP_MD_get_size(md);
     }
@@ -553,6 +555,8 @@ int test_hkdf(void *data)
     };
 
     (void)data;
+    
+    fprintf(stderr, "DEBUG: Starting test_hkdf\n");
 
     for (i = 0; (err == 0) && (i < NUM_MODES); i++) {
     #ifdef WP_HAVE_SHA256
