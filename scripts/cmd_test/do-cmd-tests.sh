@@ -164,6 +164,7 @@ fi
 export WOLFPROV_REPLACE_DEFAULT
 export WOLFPROV_FIPS
 export WOLFPROV_INSTALLED
+export WOLFPROV_MODE_DETECTED
 
 # Ensure we can switch providers before proceeding
 use_default_provider
