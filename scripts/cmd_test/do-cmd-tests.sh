@@ -39,11 +39,6 @@ Usage: $0 [OPTIONS] [TESTS]
 Run wolfProvider command-line tests with optional configuration flags.
 
 OPTIONS:
-    --fips              Enable FIPS mode (sets WOLFSSL_ISFIPS=1)
-    --replace-default   Indicate that wolfProvider is configured as replace-default
-                        (requires --debian to be specified)
-    --force-fail        Enable force-fail mode (sets WOLFPROV_FORCE_FAIL=1)
-    --debian            Specify if using Debian packages (required with --replace-default)
     --help              Show this help message
 
 TESTS (if none specified, all tests run):
@@ -53,13 +48,7 @@ TESTS (if none specified, all tests run):
     ecc                 Run ECC key generation test
     req                 Run certificate request test
 
-EXAMPLES:
-    $0                                      # Run all tests
-    $0 --fips                               # Run all tests in FIPS mode
-    $0 --debian --replace-default rsa ecc   # Run RSA and ECC tests with replace-default
-    $0 --fips --force-fail hash             # Run hash test in FIPS mode with force-fail
-
-ENVIRONMENT VARIABLES:
+ENVIRONMENT VARIABLES (env vars get detected from verify-install.sh):
     OPENSSL_BIN         Path to OpenSSL binary (auto-detected if not set)
     WOLFPROV_PATH       Path to wolfProvider modules directory
     WOLFPROV_CONFIG     Path to wolfProvider config file
@@ -73,22 +62,6 @@ EOF
 # Parse arguments
 while [[ $# -gt 0 ]]; do
     case $1 in
-        --fips)
-            export WOLFSSL_ISFIPS=1
-            shift
-            ;;
-        --replace-default)
-            export WOLFPROV_REPLACE_DEFAULT=1
-            shift
-            ;;
-        --force-fail)
-            export WOLFPROV_FORCE_FAIL=1
-            shift
-            ;;
-        --debian)
-            export WOLFPROV_DEBIAN=1
-            shift
-            ;;
         --help|-h)
             show_help
             ;;
@@ -124,14 +97,6 @@ while [[ $# -gt 0 ]]; do
             ;;
     esac
 done
-
-# Validate that --debian is specified when --replace-default is used
-if [ "${WOLFPROV_REPLACE_DEFAULT:-0}" = "1" ] && [ "${WOLFPROV_DEBIAN:-0}" != "1" ]; then
-    echo "ERROR: --replace-default requires --debian to be specified"
-    echo "Replace-default mode is only available with Debian packages"
-    echo "Use --help for usage information"
-    exit 1
-fi
 
 # If no specific tests were requested, run all tests
 if [ $RUN_ALL -eq 1 ]; then
@@ -173,6 +138,17 @@ else
     fi
 fi
 
+echo "==========================================
+wolfProvider Command-Line Tests
+=========================================="
+echo ""
+echo "Running command-line test suite..."
+echo ""
+
+# Detect installation mode and setup environment
+cmd_test_env_setup
+
+echo ""
 echo "=== Running wolfProvider Command-Line Tests ==="
 echo "Using OPENSSL_BIN: ${OPENSSL_BIN}" 
 echo "Using WOLFPROV_PATH: ${WOLFPROV_PATH}"
@@ -183,9 +159,11 @@ fi
 if [ "${WOLFPROV_FORCE_FAIL}" = "1" ]; then
     echo "Force-fail mode: ENABLED"
 fi
-if [ "${WOLFPROV_REPLACE_DEFAULT}" = "1" ]; then
-    echo "Replace-default mode: ENABLED"
-fi
+
+# Export detection variables for child scripts
+export WOLFPROV_REPLACE_DEFAULT
+export WOLFPROV_FIPS
+export WOLFPROV_INSTALLED
 
 # Ensure we can switch providers before proceeding
 use_default_provider

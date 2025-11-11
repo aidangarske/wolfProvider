@@ -17,35 +17,90 @@
 # You should have received a copy of the GNU General Public License
 # along with wolfProvider. If not, see <http://www.gnu.org/licenses/>.
 
-cmd_test_env_setup() {
-    local log_file_name=$1
-    SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
-    # Set up environment
-    export LOG_FILE="${SCRIPT_DIR}/${log_file_name}"
-    touch "$LOG_FILE"
+# Global variables to store wolfProvider installation mode
+WOLFPROV_REPLACE_DEFAULT=0
+WOLFPROV_FIPS=0
+WOLFPROV_INSTALLED=0
 
+# Function to detect wolfProvider installation mode
+detect_wolfprovider_mode() {
+    if [ -z "${REPO_ROOT:-}" ]; then
+        REPO_ROOT="$( cd "$( dirname "${BASH_SOURCE[0]}" )"/../.. &> /dev/null && pwd )"
+    fi
+    
+    # Get OpenSSL version and initial provider info
+    local openssl_version=$(${OPENSSL_BIN} version 2>/dev/null)
+    local openssl_providers=$(${OPENSSL_BIN} list -providers 2>/dev/null)
+    
+    # Detect if wolfProvider is currently active
+    if echo "$openssl_providers" | grep -qi "wolfSSL Provider"; then
+        WOLFPROV_INSTALLED=1
+        echo "Detected: wolfProvider is currently active"
+    else
+        WOLFPROV_INSTALLED=0
+        echo "Detected: wolfProvider is not currently active"
+    fi
+    
+    # Detect if FIPS mode is active
+    if echo "$openssl_providers" | grep -qi "wolfSSL Provider FIPS"; then
+        WOLFPROV_FIPS=1
+        echo "Detected: wolfProvider FIPS mode"
+    else
+        WOLFPROV_FIPS=0
+        echo "Detected: wolfProvider non-FIPS mode"
+    fi
+    
+    # Detect replace-default mode
+    if echo "$openssl_providers" | grep -q "default" && echo "$openssl_providers" | grep -qi "wolfSSL Provider"; then
+        WOLFPROV_REPLACE_DEFAULT=1
+        echo "Detected: wolfProvider installed in replace-default mode (provider: default)"
+    elif echo "$openssl_providers" | grep -qi "libwolfprov"; then
+        WOLFPROV_REPLACE_DEFAULT=0
+        echo "Detected: wolfProvider installed in non-replace-default mode (provider: libwolfprov)"
+    else
+        WOLFPROV_REPLACE_DEFAULT=0
+        echo "Detected: wolfProvider not in replace-default mode"
+    fi
+    
+    # Print detection summary
+    echo "wolfProvider mode detection:"
+    echo "  REPLACE_DEFAULT: $WOLFPROV_REPLACE_DEFAULT"
+    echo "  FIPS: $WOLFPROV_FIPS"
+    echo "  INSTALLED: $WOLFPROV_INSTALLED"
+}
+
+
+# Function to setup the environment for the command-line tests
+cmd_test_env_setup() {
     # OPENSSL_BIN must be set by the caller
     if [ -z "${OPENSSL_BIN:-}" ]; then
-        echo "Error: OPENSSL_BIN environment variable is not set" | tee -a "$LOG_FILE"
+        echo "Error: OPENSSL_BIN environment variable is not set"
         exit 1
     fi
+
+    # Detect wolfProvider installation mode (only if not already detected)
+    if [ -z "${WOLFPROV_MODE_DETECTED:-}" ]; then
+        detect_wolfprovider_mode
+        export WOLFPROV_MODE_DETECTED=1
+    fi
+}
+
+
+# Individual test setup (called by each test script)
+cmd_test_init() {
+    local log_file_name=$1
+    SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+    
+    # Set up log file
+    export LOG_FILE="${SCRIPT_DIR}/${log_file_name}"
+    touch "$LOG_FILE"
+    
+    # Redirect all output to log file
+    exec > >(tee -a "$LOG_FILE") 2>&1
 
     # Fail flags
     FAIL=0
     FORCE_FAIL_PASSED=0
-
-    # Get the force fail parameter
-    if [ "${WOLFPROV_FORCE_FAIL}" = "1" ]; then
-        echo "Force fail mode enabled"
-    fi
-    if [ "${WOLFSSL_ISFIPS}" = "1" ]; then
-        echo "FIPS mode enabled"
-    fi
-
-    # Print environment for verification
-    echo "Environment variables:"
-    echo "OPENSSL_MODULES: ${OPENSSL_MODULES}"
-    echo "OPENSSL_BIN: ${OPENSSL_BIN}"
 }
 
 # Function to use default provider only
@@ -53,30 +108,86 @@ use_default_provider() {
     unset OPENSSL_MODULES
     unset OPENSSL_CONF
 
-    # Verify that we are using the default provider
-    if [ "${WOLFPROV_DEBIAN}" != "1" ]; then
-        if ${OPENSSL_BIN} list -providers | grep -q "wolfprov"; then
+    # Check if wolfProvider is in replace-default mode
+    if [ "$WOLFPROV_REPLACE_DEFAULT" = "1" ]; then
+        echo "INFO: wolfProvider is installed in replace-default mode"
+        echo "INFO: wolfProvider IS the default provider and cannot be switched off"
+        
+        # Verify that wolfProvider (as default) is active
+        local providers=$(${OPENSSL_BIN} list -providers 2>/dev/null)
+        if echo "$providers" | grep -q "default" && echo "$providers" | grep -qi "wolfSSL Provider"; then
+            echo "Using default provider (wolfProvider in replace-default mode)"
+        else
+            echo "FAIL: Expected wolfProvider as default, but provider list doesn't match"
+            echo "Provider list:"
+            echo "$providers"
+            exit 1
+        fi
+    else
+        # In non-replace-default mode, unsetting OPENSSL_MODULES should disable wolfProvider
+        echo "INFO: wolfProvider is installed in non-replace-default mode"
+        
+        # Verify that we are using the OpenSSL default provider (not wolfProvider)
+        local providers=$(${OPENSSL_BIN} list -providers 2>/dev/null)
+        if echo "$providers" | grep -qi "libwolfprov"; then
             echo "FAIL: unable to switch to default provider, wolfProvider is still active"
+            echo "Provider list:"
+            echo "$providers"
+            exit 1
+        fi
+        
+        # Check if OpenSSL default provider is active
+        if echo "$providers" | grep -q "default" && echo "$providers" | grep -qi "OpenSSL Default Provider"; then
+            echo "Switched to default provider (OpenSSL)"
+        else
+            echo "FAIL: Expected OpenSSL Default Provider, but provider list doesn't match"
+            echo "Provider list:"
+            echo "$providers"
             exit 1
         fi
     fi
-    echo "Switched to default provider"
 }
+
 
 # Function to use wolf provider only
 use_wolf_provider() {
-    export OPENSSL_MODULES=$WOLFPROV_PATH
-    export OPENSSL_CONF=${WOLFPROV_CONFIG}
-
-    # Verify that we are using wolfProvider
-    if [ "${WOLFPROV_DEBIAN}" != "1" ]; then
-        if ! ${OPENSSL_BIN} list -providers | grep -q "wolfprov"; then
-            echo "FAIL: unable to switch to wolfProvider, default provider is still active"
+    # Check if wolfProvider is in replace-default mode
+    if [ "$WOLFPROV_REPLACE_DEFAULT" = "1" ]; then
+        # In replace-default mode, wolfProvider is already the default
+        # No need to set OPENSSL_MODULES or OPENSSL_CONF
+        echo "INFO: wolfProvider is installed in replace-default mode"
+        echo "INFO: wolfProvider is already active as the default provider"
+        
+        # Verify that wolfProvider is active
+        local providers=$(${OPENSSL_BIN} list -providers 2>/dev/null)
+        if echo "$providers" | grep -qi "wolfSSL Provider"; then
+            echo "Using wolfProvider (replace-default mode)"
+        else
+            echo "FAIL: wolfProvider is not active"
+            echo "Provider list:"
+            echo "$providers"
             exit 1
         fi
+    else
+        # In non-replace-default mode, we need to set OPENSSL_MODULES and OPENSSL_CONF
+        echo "INFO: wolfProvider is installed in non-replace-default mode"
+        export OPENSSL_MODULES=$WOLFPROV_PATH
+        export OPENSSL_CONF=${WOLFPROV_CONFIG}
+
+        # Verify that we are using wolfProvider
+        local providers=$(${OPENSSL_BIN} list -providers 2>/dev/null)
+        if ! echo "$providers" | grep -qi "wolfprov"; then
+            echo "FAIL: unable to switch to wolfProvider, default provider is still active"
+            echo "Provider list:"
+            echo "$providers"
+            echo "OPENSSL_MODULES: $OPENSSL_MODULES"
+            echo "OPENSSL_CONF: $OPENSSL_CONF"
+            exit 1
+        fi
+        echo "Switched to wolfProvider"
     fi
-    echo "Switched to wolfProvider"
 }
+
 
 # Helper function to handle force fail checks
 check_force_fail() {
@@ -85,6 +196,7 @@ check_force_fail() {
         FORCE_FAIL_PASSED=1
     fi
 }
+
 
 # Helper function to get provider name from provider arguments
 get_provider_name() {

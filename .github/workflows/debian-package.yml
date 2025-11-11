@@ -3,7 +3,7 @@ name: Debian Package Test
 # START OF COMMON SECTION
 on:
   push:
-    branches: [ 'master', 'main', 'release/**' ]
+    branches: [ '*' ]
   pull_request:
     branches: [ '*' ]
 
@@ -98,7 +98,7 @@ jobs:
 
           # Run the do-cmd-test.sh script to execute interoperability tests
           echo "Running OpenSSL provider interoperability tests..."
-          OPENSSL_BIN=$(eval which openssl) ${{ matrix.force_fail }} ${{ matrix.fips_ref == 'FIPS' && 'WOLFSSL_ISFIPS=1' || '' }} ./scripts/cmd_test/do-cmd-tests.sh
+          OPENSSL_BIN=$(eval which openssl) ./scripts/cmd_test/do-cmd-tests.sh
 
           # Restore wolfprovider configuration
           echo "Restoring wolfprovider configuration:"
