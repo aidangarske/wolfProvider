@@ -42,19 +42,6 @@ PROVIDER_ARGS=("-provider-path $WOLFPROV_PATH -provider libwolfprov" "-provider 
 
 OPENSSL_BIN=${OPENSSL_BIN:-openssl}
 
-rsa_check_force_fail() {
-    local openssl_providers=$($OPENSSL_BIN list -providers)
-    is_openssl_default_provider=$(echo "$openssl_providers" | grep -qi "OpenSSL Default Provider" && echo 1 || echo 0)
-    if [ $is_openssl_default_provider -eq 1 ]; then
-        # With the OpenSSL provider, don't expect failures
-        echo "OPENSSL Default provider active, no forced failures expected."
-    elif [ "${WOLFPROV_FORCE_FAIL}" = "1" ]; then
-        echo "[PASS] Test passed when force fail was enabled"
-        FORCE_FAIL_PASSED=1
-        exit 1
-    fi
-}
-
 # Function to validate key
 validate_key() {
     local key_type=$1
