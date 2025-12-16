@@ -101,7 +101,9 @@ jobs:
             "echo 'setting up environment'" \
             "wolfproviderenv" \
             "echo '=== Running librelp ptest ==='" \
-            "cd /usr/lib/librelp/ptest && ./run-ptest" > "$OUTPUT_FILE" 2>&1 || true
+            "cd /usr/lib/librelp/ptest && ./run-ptest" \
+            "echo '=== Test suite log ==='" \
+            "cat /usr/lib/librelp/ptest/tests/test-suite.log 2>/dev/null || echo 'test-suite.log not found'" > "$OUTPUT_FILE" 2>&1 || true
           
           echo "=== Librelp ptest output ==="
           cat "$OUTPUT_FILE"
