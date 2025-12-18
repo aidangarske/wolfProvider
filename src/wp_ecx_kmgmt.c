@@ -320,11 +320,11 @@ void wp_ecx_free(wp_Ecx* ecx)
     if (ecx != NULL) {
         int cnt;
         
-        WOLFPROV_MSG_DEBUG(WP_LOG_LEVEL_DEBUG, "wp_ecx_free: ENTER ecx=%p, refCnt=%d", ecx, ecx->refCnt);
+        WOLFPROV_MSG_DEBUG(WP_LOG_COMP_KE, "wp_ecx_free: ENTER ecx=%p, refCnt=%d", ecx, ecx->refCnt);
         
         /* Log environment for debugging Yocto/QEMU issues */
         #ifdef __linux__
-        WOLFPROV_MSG_DEBUG(WP_LOG_LEVEL_DEBUG, "wp_ecx_free: Running on Linux");
+        WOLFPROV_MSG_DEBUG(WP_LOG_COMP_KE, "wp_ecx_free: Running on Linux");
         #endif
         
     #ifndef WP_SINGLE_THREADED
@@ -332,7 +332,7 @@ void wp_ecx_free(wp_Ecx* ecx)
 
         rc = wc_LockMutex(&ecx->mutex);
         if (rc < 0) {
-            WOLFPROV_MSG_DEBUG_RETCODE(WP_LOG_LEVEL_ERROR, "wp_ecx_free: wc_LockMutex failed", rc);
+            WOLFPROV_MSG_DEBUG_RETCODE(WP_LOG_COMP_KE, "wp_ecx_free: wc_LockMutex failed", rc);
         }
         cnt = --ecx->refCnt;
         WOLFPROV_MSG_DEBUG(WP_LOG_LEVEL_DEBUG, "wp_ecx_free: Decremented refCnt to %d", cnt);
