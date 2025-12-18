@@ -412,9 +412,9 @@ static int wp_x25519_derive(wp_EcxCtx* ctx, unsigned char* secret,
         }
 
         if (ok) {
-            /* ALWAYS normalize BOTH keys before calling wc_curve25519_shared_secret */
-            /* The error -199 can come from either the local key OR the peer key having MSB set */
-            /* Even if export shows MSB is clear, the internal representation might be wrong */
+            /* Normalize PEER key before calling wc_curve25519_shared_secret */
+            /* NOTE: We do NOT normalize the LOCAL key because it needs to preserve its PRIVATE key */
+            /* The local key must have a private key component for wc_curve25519_shared_secret to work */
             curve25519_key* local_key = (curve25519_key*)key_ptr;
             curve25519_key* peer_key_derive = (curve25519_key*)peer_ptr;
             byte key_pub[CURVE25519_KEYSIZE];
@@ -422,31 +422,20 @@ static int wp_x25519_derive(wp_EcxCtx* ctx, unsigned char* secret,
             word32 key_pub_len = CURVE25519_KEYSIZE;
             word32 peer_pub_check_len = CURVE25519_KEYSIZE;
             
-            /* Export and check local key */
+            /* Check local key (for debug only - do NOT re-import as it would destroy private key) */
             rc = wc_curve25519_export_public_ex(local_key, key_pub, &key_pub_len, EC25519_LITTLE_ENDIAN);
             if (rc == 0 && key_pub_len == CURVE25519_KEYSIZE) {
-                fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: LOCAL key export: last byte=0x%02x (MSB=%s)\n", 
+                fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: LOCAL key export: last byte=0x%02x (MSB=%s) - NOT normalizing (preserving private key)\n", 
                         key_pub[CURVE25519_KEYSIZE - 1],
                         (key_pub[CURVE25519_KEYSIZE - 1] & 0x80) ? "SET" : "CLEAR");
                 fflush(stderr);
-                /* ALWAYS normalize - clear MSB and re-import to ensure internal state is correct */
-                key_pub[CURVE25519_KEYSIZE - 1] &= 0x7f;
-                rc = wc_curve25519_import_public_ex(key_pub, CURVE25519_KEYSIZE, local_key, EC25519_LITTLE_ENDIAN);
-                if (rc != 0) {
-                    fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: Failed to normalize LOCAL key, rc=%d\n", rc);
-                    fflush(stderr);
-                    ok = 0;
-                } else {
-                    fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: LOCAL key normalized successfully\n");
-                    fflush(stderr);
-                }
             } else {
                 fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: Failed to export LOCAL key (rc=%d, len=%u)\n", rc, key_pub_len);
                 fflush(stderr);
                 ok = 0;
             }
             
-            /* Export and check peer key */
+            /* Export and normalize peer key (peer key is public-only, safe to re-import) */
             if (ok) {
                 rc = wc_curve25519_export_public_ex(peer_key_derive, peer_pub_check, &peer_pub_check_len, EC25519_LITTLE_ENDIAN);
                 if (rc == 0 && peer_pub_check_len == CURVE25519_KEYSIZE) {
@@ -454,7 +443,7 @@ static int wp_x25519_derive(wp_EcxCtx* ctx, unsigned char* secret,
                             peer_pub_check[CURVE25519_KEYSIZE - 1],
                             (peer_pub_check[CURVE25519_KEYSIZE - 1] & 0x80) ? "SET" : "CLEAR");
                     fflush(stderr);
-                    /* ALWAYS normalize - clear MSB and re-import to ensure internal state is correct */
+                    /* ALWAYS normalize peer key - clear MSB and re-import to ensure internal state is correct */
                     peer_pub_check[CURVE25519_KEYSIZE - 1] &= 0x7f;
                     rc = wc_curve25519_import_public_ex(peer_pub_check, CURVE25519_KEYSIZE, peer_key_derive, EC25519_LITTLE_ENDIAN);
                     if (rc != 0) {
