@@ -264,6 +264,15 @@ static int wp_ecx_set_peer(wp_EcxCtx* ctx, wp_Ecx* peer)
                 } else {
                     fprintf(stderr, "[X25519-DEBUG] wp_ecx_set_peer: X25519 peer key re-imported with normalized MSB successfully\n");
                     fflush(stderr);
+                    /* Verify the re-import worked by exporting again */
+                    word32 verify_len = CURVE25519_KEYSIZE;
+                    byte verify_pub[CURVE25519_KEYSIZE];
+                    rc = wc_curve25519_export_public_ex((curve25519_key*)peer_key, verify_pub, &verify_len, EC25519_LITTLE_ENDIAN);
+                    if (rc == 0 && verify_len == CURVE25519_KEYSIZE) {
+                        fprintf(stderr, "[X25519-DEBUG] wp_ecx_set_peer: Verification export - last byte=0x%02x (MSB=%d)\n",
+                                verify_pub[CURVE25519_KEYSIZE - 1], (verify_pub[CURVE25519_KEYSIZE - 1] & 0x80) ? 1 : 0);
+                        fflush(stderr);
+                    }
                 }
             } else {
                 fprintf(stderr, "[X25519-DEBUG] wp_ecx_set_peer: Not X25519 (export failed or wrong size), skipping MSB fix\n");
@@ -403,19 +412,78 @@ static int wp_x25519_derive(wp_EcxCtx* ctx, unsigned char* secret,
         }
 
         if (ok) {
-            /* Note: MSB clearing is now done in wp_ecx_set_peer() when peer is set */
-            /* This ensures RFC 7748 compliance once, not on every derive call */
-            fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: Calling wc_curve25519_shared_secret with key_ptr=%p, peer_ptr=%p\n", 
-                    key_ptr, peer_ptr);
-            fflush(stderr);
-            rc = wc_curve25519_shared_secret((curve25519_key*)key_ptr, (curve25519_key*)peer_ptr, secret, &len);
-            fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: wc_curve25519_shared_secret returned %d, len=%u\n", rc, len);
-            fflush(stderr);
+            /* Check and normalize BOTH keys before calling wc_curve25519_shared_secret */
+            /* The error -199 can come from either the local key OR the peer key having MSB set */
+            curve25519_key* local_key = (curve25519_key*)key_ptr;
+            curve25519_key* peer_key = (curve25519_key*)peer_ptr;
+            byte key_pub[CURVE25519_KEYSIZE];
+            byte peer_pub_check[CURVE25519_KEYSIZE];
+            word32 key_pub_len = CURVE25519_KEYSIZE;
+            word32 peer_pub_check_len = CURVE25519_KEYSIZE;
+            int need_fix_local = 0;
+            int need_fix_peer = 0;
             
-            if (rc != 0) {
-                fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: wc_curve25519_shared_secret FAILED with rc=%d\n", rc);
+            /* Check local key */
+            rc = wc_curve25519_export_public_ex(local_key, key_pub, &key_pub_len, EC25519_LITTLE_ENDIAN);
+            if (rc == 0 && key_pub_len == CURVE25519_KEYSIZE) {
+                if ((key_pub[CURVE25519_KEYSIZE - 1] & 0x80) != 0x00) {
+                    fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: LOCAL key has MSB set! Last byte=0x%02x\n", 
+                            key_pub[CURVE25519_KEYSIZE - 1]);
+                    fflush(stderr);
+                    need_fix_local = 1;
+                }
+            }
+            
+            /* Check peer key */
+            rc = wc_curve25519_export_public_ex(peer_key, peer_pub_check, &peer_pub_check_len, EC25519_LITTLE_ENDIAN);
+            if (rc == 0 && peer_pub_check_len == CURVE25519_KEYSIZE) {
+                if ((peer_pub_check[CURVE25519_KEYSIZE - 1] & 0x80) != 0x00) {
+                    fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: PEER key has MSB set! Last byte=0x%02x\n", 
+                            peer_pub_check[CURVE25519_KEYSIZE - 1]);
+                    fflush(stderr);
+                    need_fix_peer = 1;
+                }
+            }
+            
+            /* Fix local key if needed */
+            if (need_fix_local) {
+                fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: Normalizing LOCAL key MSB\n");
                 fflush(stderr);
-                ok = 0;
+                key_pub[CURVE25519_KEYSIZE - 1] &= 0x7f;
+                rc = wc_curve25519_import_public_ex(key_pub, CURVE25519_KEYSIZE, local_key, EC25519_LITTLE_ENDIAN);
+                if (rc != 0) {
+                    fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: Failed to normalize LOCAL key, rc=%d\n", rc);
+                    fflush(stderr);
+                    ok = 0;
+                }
+            }
+            
+            /* Fix peer key if needed */
+            if (ok && need_fix_peer) {
+                fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: Normalizing PEER key MSB\n");
+                fflush(stderr);
+                peer_pub_check[CURVE25519_KEYSIZE - 1] &= 0x7f;
+                rc = wc_curve25519_import_public_ex(peer_pub_check, CURVE25519_KEYSIZE, peer_key, EC25519_LITTLE_ENDIAN);
+                if (rc != 0) {
+                    fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: Failed to normalize PEER key, rc=%d\n", rc);
+                    fflush(stderr);
+                    ok = 0;
+                }
+            }
+            
+            if (ok) {
+                fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: Calling wc_curve25519_shared_secret with key_ptr=%p, peer_ptr=%p\n", 
+                        key_ptr, peer_ptr);
+                fflush(stderr);
+                rc = wc_curve25519_shared_secret(local_key, peer_key, secret, &len);
+                fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: wc_curve25519_shared_secret returned %d, len=%u\n", rc, len);
+                fflush(stderr);
+                
+                if (rc != 0) {
+                    fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: wc_curve25519_shared_secret FAILED with rc=%d\n", rc);
+                    fflush(stderr);
+                    ok = 0;
+                }
             }
         }
         if (ok) {
