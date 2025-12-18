@@ -194,25 +194,68 @@ static int wp_ecx_set_peer(wp_EcxCtx* ctx, wp_Ecx* peer)
     int ok = 1;
 
     WOLFPROV_ENTER(WP_LOG_COMP_X25519, "wp_ecx_set_peer");
-    WOLFPROV_MSG_DEBUG(WP_LOG_COMP_X25519, "wp_ecx_set_peer: ctx=%p, peer=%p", ctx, peer);
+    fprintf(stderr, "[X25519-DEBUG] wp_ecx_set_peer: ctx=%p, peer=%p\n", ctx, peer);
+    fflush(stderr);
 
     if (!wolfssl_prov_is_running()) {
-        WOLFPROV_MSG(WP_LOG_COMP_X25519, "wp_ecx_set_peer: Provider not running!");
+        fprintf(stderr, "[X25519-DEBUG] wp_ecx_set_peer: Provider not running!\n");
+        fflush(stderr);
         ok = 0;
     }
 
     if (ok && (ctx->peer != peer)) {
-        WOLFPROV_MSG_DEBUG(WP_LOG_COMP_X25519, "wp_ecx_set_peer: Replacing old peer %p with new peer %p", ctx->peer, peer);
+        fprintf(stderr, "[X25519-DEBUG] wp_ecx_set_peer: Replacing old peer %p with new peer %p\n", ctx->peer, peer);
+        fflush(stderr);
         wp_ecx_free(ctx->peer);
         ctx->peer = NULL;
         if (!wp_ecx_up_ref(peer)) {
-            WOLFPROV_MSG(WP_LOG_COMP_X25519, "wp_ecx_set_peer: wp_ecx_up_ref failed!");
+            fprintf(stderr, "[X25519-DEBUG] wp_ecx_set_peer: wp_ecx_up_ref failed!\n");
+            fflush(stderr);
             ok = 0;
         }
     }
+    
+    /* Fix for error -199 (ECC_BAD_ARG_E): Ensure peer public key MSB is cleared (RFC 7748) */
+    /* This is done here (not in derive) because: */
+    /* 1. Fix once when peer is set, not on every derive call */
+    /* 2. wp_ecx_set_peer bypasses wp_x25519_import_public which normally clears MSB */
+    /* 3. OpenSSL's default provider clears MSB during import, we must do the same */
+    /* 4. We re-import using peer->data->importPub (wp_x25519_import_public) which handles MSB clearing */
+    if (ok && peer != NULL && peer->data != NULL && peer->data->importPub != NULL) {
+        curve25519_key* peer_key = (curve25519_key*)wp_ecx_get_key(peer);
+        if (peer_key != NULL) {
+            byte peer_pub[CURVE25519_KEYSIZE];
+            word32 peer_pub_len = CURVE25519_KEYSIZE;
+            int rc;
+            
+            /* Export peer public key to get raw bytes */
+            rc = wc_curve25519_export_public_ex(peer_key, peer_pub, &peer_pub_len, EC25519_LITTLE_ENDIAN);
+            if (rc == 0 && peer_pub_len == CURVE25519_KEYSIZE) {
+                /* Check if MSB (bit 7 of last byte) is set - RFC 7748 requires it to be clear */
+                if ((peer_pub[CURVE25519_KEYSIZE - 1] & 0x80) != 0x00) {
+                    fprintf(stderr, "[X25519-DEBUG] wp_ecx_set_peer: Peer key MSB is set, re-importing with MSB cleared (RFC 7748)\n");
+                    fflush(stderr);
+                    /* Re-import using wp_x25519_import_public (via peer->data->importPub) */
+                    /* This function automatically clears MSB if set - matching OpenSSL's behavior */
+                    /* We pass the exported bytes (which may have MSB set) and let importPub handle clearing */
+                    rc = (*peer->data->importPub)(peer_pub, CURVE25519_KEYSIZE, peer_key, EC25519_LITTLE_ENDIAN);
+                    if (rc != 0) {
+                        fprintf(stderr, "[X25519-DEBUG] wp_ecx_set_peer: Failed to re-import peer key with MSB cleared, rc=%d\n", rc);
+                        fflush(stderr);
+                        ok = 0;
+                    } else {
+                        fprintf(stderr, "[X25519-DEBUG] wp_ecx_set_peer: Peer key re-imported with MSB cleared successfully\n");
+                        fflush(stderr);
+                    }
+                }
+            }
+        }
+    }
+    
     if (ok) {
         ctx->peer = peer;
-        WOLFPROV_MSG_DEBUG(WP_LOG_COMP_X25519, "wp_ecx_set_peer: Peer set successfully");
+        fprintf(stderr, "[X25519-DEBUG] wp_ecx_set_peer: Peer set successfully\n");
+        fflush(stderr);
     }
 
     WOLFPROV_LEAVE(WP_LOG_COMP_X25519, __FILE__ ":" WOLFPROV_STRINGIZE(__LINE__), ok);
@@ -332,10 +375,12 @@ static int wp_x25519_derive(wp_EcxCtx* ctx, unsigned char* secret,
         }
 
         if (ok) {
+            /* Note: MSB clearing is now done in wp_ecx_set_peer() when peer is set */
+            /* This ensures RFC 7748 compliance once, not on every derive call */
             fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: Calling wc_curve25519_shared_secret with key_ptr=%p, peer_ptr=%p\n", 
                     key_ptr, peer_ptr);
             fflush(stderr);
-            rc = wc_curve25519_shared_secret(key_ptr, peer_ptr, secret, &len);
+            rc = wc_curve25519_shared_secret((curve25519_key*)key_ptr, (curve25519_key*)peer_ptr, secret, &len);
             fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: wc_curve25519_shared_secret returned %d, len=%u\n", rc, len);
             fflush(stderr);
             

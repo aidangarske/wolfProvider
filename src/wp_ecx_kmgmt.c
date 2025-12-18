@@ -460,6 +460,13 @@ static int wp_ecx_set_params(wp_Ecx* ecx, const OSSL_PARAM params[])
         ok = 0;
     }
     if (ok && (data != NULL)) {
+        /* UNCONDITIONAL DEBUG: Track if peer key goes through set_params path */
+        fprintf(stderr, "[X25519-DEBUG] wp_ecx_set_params: Setting ENCODED_PUBLIC_KEY via importPub, len=%zu\n", len);
+        if (len >= CURVE25519_KEYSIZE) {
+            fprintf(stderr, "[X25519-DEBUG] wp_ecx_set_params: Last byte before import: 0x%02x (MSB=%d)\n", 
+                    data[CURVE25519_KEYSIZE - 1], (data[CURVE25519_KEYSIZE - 1] & 0x80) ? 1 : 0);
+        }
+        fflush(stderr);
         int rc = (*ecx->data->importPub)(data, (word32)len, (void*)&ecx->key,
             ECX_LITTLE_ENDIAN);
         if (rc != 0) {
@@ -468,6 +475,8 @@ static int wp_ecx_set_params(wp_Ecx* ecx, const OSSL_PARAM params[])
         }
         if (ok) {
             ecx->hasPub = 1;
+            fprintf(stderr, "[X25519-DEBUG] wp_ecx_set_params: Public key set successfully\n");
+            fflush(stderr);
         }
     }
 
@@ -984,6 +993,13 @@ static int wp_ecx_import(wp_Ecx* ecx, int selection, const OSSL_PARAM params[])
             ok = 0;
         }
         if (ok && (pubData != NULL)) {
+            /* UNCONDITIONAL DEBUG: Track if peer key goes through import path */
+            fprintf(stderr, "[X25519-DEBUG] wp_ecx_import: Importing public key via importPub, len=%zu\n", len);
+            if (len >= CURVE25519_KEYSIZE) {
+                fprintf(stderr, "[X25519-DEBUG] wp_ecx_import: Last byte before import: 0x%02x (MSB=%d)\n", 
+                        pubData[CURVE25519_KEYSIZE - 1], (pubData[CURVE25519_KEYSIZE - 1] & 0x80) ? 1 : 0);
+            }
+            fflush(stderr);
             rc = (*ecx->data->importPub)(pubData, (word32)len, (void*)&ecx->key,
                 ECX_LITTLE_ENDIAN);
             if (rc != 0) {
@@ -992,6 +1008,8 @@ static int wp_ecx_import(wp_Ecx* ecx, int selection, const OSSL_PARAM params[])
             }
             if (ok) {
                 ecx->hasPub = 1;
+                fprintf(stderr, "[X25519-DEBUG] wp_ecx_import: Public key imported successfully\n");
+                fflush(stderr);
             }
         }
     }
@@ -1416,11 +1434,25 @@ static int wp_x25519_import_public(const byte* in, word32 inLen,
 {
     unsigned char data[CURVE25519_KEYSIZE];
 
+    /* UNCONDITIONAL DEBUG: Track MSB clearing in import */
+    if (inLen >= CURVE25519_KEYSIZE) {
+        fprintf(stderr, "[X25519-DEBUG] wp_x25519_import_public: Importing key, last byte=0x%02x (MSB=%d)\n",
+                in[CURVE25519_KEYSIZE - 1], (in[CURVE25519_KEYSIZE - 1] & 0x80) ? 1 : 0);
+        fflush(stderr);
+    }
+
     /* OpenSSL masks off top bit of public key. */
     if ((in[CURVE25519_KEYSIZE - 1] & 0x80) != 0x00) {
+        fprintf(stderr, "[X25519-DEBUG] wp_x25519_import_public: MSB is set, clearing it (RFC 7748)\n");
+        fflush(stderr);
         XMEMCPY(data, in, CURVE25519_KEYSIZE);
         data[CURVE25519_KEYSIZE - 1] &= 0x7f;
         in = data;
+        fprintf(stderr, "[X25519-DEBUG] wp_x25519_import_public: After clearing, last byte=0x%02x\n", data[CURVE25519_KEYSIZE - 1]);
+        fflush(stderr);
+    } else {
+        fprintf(stderr, "[X25519-DEBUG] wp_x25519_import_public: MSB already clear, no fix needed\n");
+        fflush(stderr);
     }
     return wc_curve25519_import_public_ex(in, inLen, key, endian);
 }
