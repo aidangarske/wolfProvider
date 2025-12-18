@@ -412,23 +412,61 @@ static int wp_x25519_derive(wp_EcxCtx* ctx, unsigned char* secret,
         }
 
         if (ok) {
-            /* Normalize PEER key before calling wc_curve25519_shared_secret */
-            /* NOTE: We do NOT normalize the LOCAL key because it needs to preserve its PRIVATE key */
-            /* The local key must have a private key component for wc_curve25519_shared_secret to work */
+            /* Normalize BOTH keys before calling wc_curve25519_shared_secret */
+            /* The -199 error can come from EITHER key having MSB set in internal representation */
             curve25519_key* local_key = (curve25519_key*)key_ptr;
             curve25519_key* peer_key_derive = (curve25519_key*)peer_ptr;
             byte key_pub[CURVE25519_KEYSIZE];
+            byte key_priv[CURVE25519_KEYSIZE];
             byte peer_pub_check[CURVE25519_KEYSIZE];
             word32 key_pub_len = CURVE25519_KEYSIZE;
+            word32 key_priv_len = CURVE25519_KEYSIZE;
             word32 peer_pub_check_len = CURVE25519_KEYSIZE;
+            int has_private = 0;
             
-            /* Check local key (for debug only - do NOT re-import as it would destroy private key) */
+            /* Export and normalize LOCAL key - preserve private key if it exists */
             rc = wc_curve25519_export_public_ex(local_key, key_pub, &key_pub_len, EC25519_LITTLE_ENDIAN);
             if (rc == 0 && key_pub_len == CURVE25519_KEYSIZE) {
-                fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: LOCAL key export: last byte=0x%02x (MSB=%s) - NOT normalizing (preserving private key)\n", 
+                fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: LOCAL key export: last byte=0x%02x (MSB=%s)\n", 
                         key_pub[CURVE25519_KEYSIZE - 1],
                         (key_pub[CURVE25519_KEYSIZE - 1] & 0x80) ? "SET" : "CLEAR");
                 fflush(stderr);
+                
+                /* Try to export private key - if successful, we need to preserve it */
+                rc = wc_curve25519_export_private_raw_ex(local_key, key_priv, &key_priv_len, EC25519_LITTLE_ENDIAN);
+                if (rc == 0 && key_priv_len == CURVE25519_KEYSIZE) {
+                    has_private = 1;
+                    fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: LOCAL key has private key, will preserve it\n");
+                    fflush(stderr);
+                } else {
+                    fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: LOCAL key has NO private key (rc=%d, len=%u)\n", rc, key_priv_len);
+                    fflush(stderr);
+                }
+                
+                /* Normalize public key MSB and re-import */
+                key_pub[CURVE25519_KEYSIZE - 1] &= 0x7f;
+                rc = wc_curve25519_import_public_ex(key_pub, CURVE25519_KEYSIZE, local_key, EC25519_LITTLE_ENDIAN);
+                if (rc != 0) {
+                    fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: Failed to normalize LOCAL public key, rc=%d\n", rc);
+                    fflush(stderr);
+                    ok = 0;
+                } else {
+                    fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: LOCAL public key normalized\n");
+                    fflush(stderr);
+                    
+                    /* If we had a private key, re-import it to restore it */
+                    if (has_private) {
+                        rc = wc_curve25519_import_private_ex(key_priv, key_priv_len, local_key, EC25519_LITTLE_ENDIAN);
+                        if (rc != 0) {
+                            fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: Failed to restore LOCAL private key, rc=%d\n", rc);
+                            fflush(stderr);
+                            ok = 0;
+                        } else {
+                            fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: LOCAL private key restored successfully\n");
+                            fflush(stderr);
+                        }
+                    }
+                }
             } else {
                 fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: Failed to export LOCAL key (rc=%d, len=%u)\n", rc, key_pub_len);
                 fflush(stderr);
