@@ -319,27 +319,50 @@ void wp_ecx_free(wp_Ecx* ecx)
 {
     if (ecx != NULL) {
         int cnt;
+        
+        WOLFPROV_MSG_DEBUG(WP_LOG_LEVEL_DEBUG, "wp_ecx_free: ENTER ecx=%p, refCnt=%d", ecx, ecx->refCnt);
+        
+        /* Log environment for debugging Yocto/QEMU issues */
+        #ifdef __linux__
+        WOLFPROV_MSG_DEBUG(WP_LOG_LEVEL_DEBUG, "wp_ecx_free: Running on Linux");
+        #endif
+        
     #ifndef WP_SINGLE_THREADED
         int rc;
 
         rc = wc_LockMutex(&ecx->mutex);
         if (rc < 0) {
-            WOLFPROV_MSG_DEBUG_RETCODE(WP_LOG_LEVEL_DEBUG, "wc_LockMutex", rc);
+            WOLFPROV_MSG_DEBUG_RETCODE(WP_LOG_LEVEL_ERROR, "wp_ecx_free: wc_LockMutex failed", rc);
         }
         cnt = --ecx->refCnt;
+        WOLFPROV_MSG_DEBUG(WP_LOG_LEVEL_DEBUG, "wp_ecx_free: Decremented refCnt to %d", cnt);
+        
+        if (cnt < 0) {
+            WOLFPROV_MSG_DEBUG(WP_LOG_LEVEL_ERROR, "wp_ecx_free: CRITICAL - refCnt is negative (%d)! Possible use-after-free!", cnt);
+        }
+        
         if (rc == 0) {
             wc_UnLockMutex(&ecx->mutex);
         }
     #else
         cnt = --ecx->refCnt;
+        WOLFPROV_MSG_DEBUG(WP_LOG_LEVEL_DEBUG, "wp_ecx_free: Decremented refCnt to %d (single-threaded)", cnt);
+        
+        if (cnt < 0) {
+            WOLFPROV_MSG_DEBUG(WP_LOG_LEVEL_ERROR, "wp_ecx_free: CRITICAL - refCnt is negative (%d)! Possible use-after-free!", cnt);
+        }
     #endif
 
         if (cnt == 0) {
+            WOLFPROV_MSG_DEBUG(WP_LOG_LEVEL_DEBUG, "wp_ecx_free: Freeing key (refCnt reached 0)");
     #ifndef WP_SINGLE_THREADED
             wc_FreeMutex(&ecx->mutex);
     #endif
             (*ecx->data->freeKey)((void*)&ecx->key);
             OPENSSL_free(ecx);
+            WOLFPROV_MSG_DEBUG(WP_LOG_LEVEL_DEBUG, "wp_ecx_free: Key freed");
+        } else {
+            WOLFPROV_MSG_DEBUG(WP_LOG_LEVEL_DEBUG, "wp_ecx_free: Key not freed (refCnt=%d > 0)", cnt);
         }
     }
 }

@@ -78,9 +78,20 @@ static wp_EcxCtx* wp_ecx_newctx(WOLFPROV_CTX* provCtx)
 static void wp_ecx_freectx(wp_EcxCtx* ctx)
 {
     if (ctx != NULL) {
+        WOLFPROV_MSG_DEBUG(WP_LOG_LEVEL_DEBUG, "wp_ecx_freectx: Freeing X25519/X448 key exchange context");
+        WOLFPROV_MSG_DEBUG(WP_LOG_LEVEL_DEBUG, "wp_ecx_freectx: ctx=%p, key=%p, peer=%p", 
+                          ctx, ctx->key, ctx->peer);
+        
+        /* Log environment info for debugging Yocto/QEMU issues */
+        #ifdef __linux__
+        WOLFPROV_MSG_DEBUG(WP_LOG_LEVEL_DEBUG, "wp_ecx_freectx: Running on Linux");
+        #endif
+        
         wp_ecx_free(ctx->peer);
         wp_ecx_free(ctx->key);
         OPENSSL_free(ctx);
+        
+        WOLFPROV_MSG_DEBUG(WP_LOG_LEVEL_DEBUG, "wp_ecx_freectx: Context freed");
     }
 }
 
@@ -174,20 +185,25 @@ static int wp_ecx_set_peer(wp_EcxCtx* ctx, wp_Ecx* peer)
     int ok = 1;
 
     WOLFPROV_ENTER(WP_LOG_COMP_X25519, "wp_ecx_set_peer");
+    WOLFPROV_MSG_DEBUG(WP_LOG_LEVEL_DEBUG, "wp_ecx_set_peer: ctx=%p, peer=%p", ctx, peer);
 
     if (!wolfssl_prov_is_running()) {
+        WOLFPROV_MSG_DEBUG(WP_LOG_LEVEL_ERROR, "wp_ecx_set_peer: Provider not running!");
         ok = 0;
     }
 
     if (ok && (ctx->peer != peer)) {
+        WOLFPROV_MSG_DEBUG(WP_LOG_LEVEL_DEBUG, "wp_ecx_set_peer: Replacing old peer %p with new peer %p", ctx->peer, peer);
         wp_ecx_free(ctx->peer);
         ctx->peer = NULL;
         if (!wp_ecx_up_ref(peer)) {
+            WOLFPROV_MSG_DEBUG(WP_LOG_LEVEL_ERROR, "wp_ecx_set_peer: wp_ecx_up_ref failed!");
             ok = 0;
         }
     }
     if (ok) {
         ctx->peer = peer;
+        WOLFPROV_MSG_DEBUG(WP_LOG_LEVEL_DEBUG, "wp_ecx_set_peer: Peer set successfully");
     }
 
     WOLFPROV_LEAVE(WP_LOG_COMP_X25519, __FILE__ ":" WOLFPROV_STRINGIZE(__LINE__), ok);
@@ -227,24 +243,82 @@ static int wp_x25519_derive(wp_EcxCtx* ctx, unsigned char* secret,
 
     WOLFPROV_ENTER(WP_LOG_COMP_X25519, "wp_x25519_derive");
 
+    /* Extensive debugging for Yocto/QEMU memory issues */
+    WOLFPROV_MSG_DEBUG(WP_LOG_LEVEL_DEBUG, "wp_x25519_derive: ENTER ctx=%p, secret=%p, secLen=%p, secSize=%zu",
+                       ctx, secret, secLen, secSize);
+    
+    if (ctx != NULL) {
+        WOLFPROV_MSG_DEBUG(WP_LOG_LEVEL_DEBUG, "wp_x25519_derive: ctx->key=%p, ctx->peer=%p",
+                           ctx->key, ctx->peer);
+    }
+
     if (!wolfssl_prov_is_running()) {
+        WOLFPROV_MSG_DEBUG(WP_LOG_LEVEL_ERROR, "wp_x25519_derive: Provider not running!");
+        ok = 0;
+    }
+
+    /* Validate context and keys before use */
+    if (ok && ctx == NULL) {
+        WOLFPROV_MSG_DEBUG(WP_LOG_LEVEL_ERROR, "wp_x25519_derive: ctx is NULL!");
+        ok = 0;
+    }
+    if (ok && ctx->key == NULL) {
+        WOLFPROV_MSG_DEBUG(WP_LOG_LEVEL_ERROR, "wp_x25519_derive: ctx->key is NULL!");
+        ok = 0;
+    }
+    if (ok && ctx->peer == NULL) {
+        WOLFPROV_MSG_DEBUG(WP_LOG_LEVEL_ERROR, "wp_x25519_derive: ctx->peer is NULL!");
         ok = 0;
     }
 
     /* No output buffer, return secret size only. */
     if (ok && (secret == NULL)) {
         *secLen = CURVE25519_KEYSIZE;
+        WOLFPROV_MSG_DEBUG(WP_LOG_LEVEL_DEBUG, "wp_x25519_derive: Returning secret size only: %d", CURVE25519_KEYSIZE);
     }
     else if (ok) {
         int rc;
         word32 len = (word32)secSize;
         int i;
-
-        rc = wc_curve25519_shared_secret(wp_ecx_get_key(ctx->key),
-            wp_ecx_get_key(ctx->peer), secret, &len);
-        if (rc != 0) {
-            WOLFPROV_MSG_DEBUG_RETCODE(WP_LOG_LEVEL_DEBUG, "wc_curve25519_shared_secret", rc);
+        
+        void* key_ptr = NULL;
+        void* peer_ptr = NULL;
+        
+        /* Get key pointers with validation */
+        if (ctx->key != NULL) {
+            key_ptr = wp_ecx_get_key(ctx->key);
+            WOLFPROV_MSG_DEBUG(WP_LOG_LEVEL_DEBUG, "wp_x25519_derive: Got key_ptr=%p from ctx->key", key_ptr);
+            if (key_ptr == NULL) {
+                WOLFPROV_MSG_DEBUG(WP_LOG_LEVEL_ERROR, "wp_x25519_derive: wp_ecx_get_key(ctx->key) returned NULL!");
+                ok = 0;
+            }
+        } else {
+            WOLFPROV_MSG_DEBUG(WP_LOG_LEVEL_ERROR, "wp_x25519_derive: ctx->key is NULL before wp_ecx_get_key!");
             ok = 0;
+        }
+        
+        if (ok && ctx->peer != NULL) {
+            peer_ptr = wp_ecx_get_key(ctx->peer);
+            WOLFPROV_MSG_DEBUG(WP_LOG_LEVEL_DEBUG, "wp_x25519_derive: Got peer_ptr=%p from ctx->peer", peer_ptr);
+            if (peer_ptr == NULL) {
+                WOLFPROV_MSG_DEBUG(WP_LOG_LEVEL_ERROR, "wp_x25519_derive: wp_ecx_get_key(ctx->peer) returned NULL!");
+                ok = 0;
+            }
+        } else if (ok) {
+            WOLFPROV_MSG_DEBUG(WP_LOG_LEVEL_ERROR, "wp_x25519_derive: ctx->peer is NULL before wp_ecx_get_key!");
+            ok = 0;
+        }
+
+        if (ok) {
+            WOLFPROV_MSG_DEBUG(WP_LOG_LEVEL_DEBUG, "wp_x25519_derive: Calling wc_curve25519_shared_secret with key_ptr=%p, peer_ptr=%p", 
+                               key_ptr, peer_ptr);
+            rc = wc_curve25519_shared_secret(key_ptr, peer_ptr, secret, &len);
+            WOLFPROV_MSG_DEBUG(WP_LOG_LEVEL_DEBUG, "wp_x25519_derive: wc_curve25519_shared_secret returned %d, len=%u", rc, len);
+            
+            if (rc != 0) {
+                WOLFPROV_MSG_DEBUG_RETCODE(WP_LOG_LEVEL_DEBUG, "wc_curve25519_shared_secret", rc);
+                ok = 0;
+            }
         }
         if (ok) {
             for (i = 0; i < CURVE25519_KEYSIZE; i++) {
@@ -274,6 +348,7 @@ static int wp_x25519_derive(wp_EcxCtx* ctx, unsigned char* secret,
         }
     }
 
+    WOLFPROV_MSG_DEBUG(WP_LOG_LEVEL_DEBUG, "wp_x25519_derive: EXIT returning %d", ok);
     WOLFPROV_LEAVE(WP_LOG_COMP_X25519, __FILE__ ":" WOLFPROV_STRINGIZE(__LINE__), ok);
     return ok;
 }

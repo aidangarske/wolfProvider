@@ -102,6 +102,9 @@ jobs:
             "wolfproviderenv" \
             "echo '=== Enabling verbose output for librelp tests ==='" \
             "export OPT_VERBOSE=-v" \
+            "echo '=== Enabling wolfProvider X25519 debug logging ==='" \
+            "export WOLFPROV_LOG_LEVEL='WP_LOG_LEVEL_ALL'" \
+            "export WOLFPROV_LOG_COMPONENTS='WP_LOG_COMP_X25519'" \
             "echo '=== Running librelp ptest ==='" \
             "cd /usr/lib/librelp/ptest && ./run-ptest" \
             "echo '=== Test suite log ==='" \
