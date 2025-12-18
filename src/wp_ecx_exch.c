@@ -25,6 +25,7 @@
 #include <openssl/params.h>
 #include <openssl/ec.h>
 #include <openssl/evp.h>
+#include <stdio.h>
 
 #include <wolfprovider/settings.h>
 #include <wolfprovider/alg_funcs.h>
@@ -78,20 +79,18 @@ static wp_EcxCtx* wp_ecx_newctx(WOLFPROV_CTX* provCtx)
 static void wp_ecx_freectx(wp_EcxCtx* ctx)
 {
     if (ctx != NULL) {
-        WOLFPROV_MSG_DEBUG(WP_LOG_COMP_X25519, "wp_ecx_freectx: Freeing X25519/X448 key exchange context");
-        WOLFPROV_MSG_DEBUG(WP_LOG_COMP_X25519, "wp_ecx_freectx: ctx=%p, key=%p, peer=%p", 
-                          ctx, ctx->key, ctx->peer);
-        
-        /* Log environment info for debugging Yocto/QEMU issues */
-        #ifdef __linux__
-        WOLFPROV_MSG_DEBUG(WP_LOG_COMP_X25519, "wp_ecx_freectx: Running on Linux");
-        #endif
+        /* UNCONDITIONAL DEBUG: Always print to stderr */
+        fprintf(stderr, "[X25519-DEBUG] wp_ecx_freectx: Freeing X25519/X448 key exchange context\n");
+        fprintf(stderr, "[X25519-DEBUG] wp_ecx_freectx: ctx=%p, key=%p, peer=%p\n", 
+                ctx, ctx->key, ctx->peer);
+        fflush(stderr);
         
         wp_ecx_free(ctx->peer);
         wp_ecx_free(ctx->key);
         OPENSSL_free(ctx);
         
-        WOLFPROV_MSG_DEBUG(WP_LOG_COMP_X25519, "wp_ecx_freectx: Context freed");
+        fprintf(stderr, "[X25519-DEBUG] wp_ecx_freectx: Context freed\n");
+        fflush(stderr);
     }
 }
 
@@ -149,22 +148,32 @@ static int wp_ecx_init(wp_EcxCtx* ctx, wp_Ecx* ecx, const OSSL_PARAM params[])
     int ok = 1;
 
     WOLFPROV_ENTER(WP_LOG_COMP_X25519, "wp_ecx_init");
+    fprintf(stderr, "[X25519-DEBUG] wp_ecx_init: ctx=%p, ecx=%p\n", ctx, ecx);
+    fflush(stderr);
 
     /* No settable parameters. */
     (void)params;
 
     if (!wolfssl_prov_is_running()) {
+        fprintf(stderr, "[X25519-DEBUG] wp_ecx_init: Provider not running!\n");
+        fflush(stderr);
         ok = 0;
     }
     if (ok && (ctx->key != ecx)) {
+        fprintf(stderr, "[X25519-DEBUG] wp_ecx_init: Replacing old key %p with new key %p\n", ctx->key, ecx);
+        fflush(stderr);
         wp_ecx_free(ctx->key);
         ctx->key = NULL;
         if (!wp_ecx_up_ref(ecx)) {
+            fprintf(stderr, "[X25519-DEBUG] wp_ecx_init: wp_ecx_up_ref failed!\n");
+            fflush(stderr);
             ok = 0;
         }
     }
     if (ok) {
         ctx->key = ecx;
+        fprintf(stderr, "[X25519-DEBUG] wp_ecx_init: Key set successfully\n");
+        fflush(stderr);
     }
 
     WOLFPROV_LEAVE(WP_LOG_COMP_X25519, __FILE__ ":" WOLFPROV_STRINGIZE(__LINE__), ok);
@@ -243,38 +252,45 @@ static int wp_x25519_derive(wp_EcxCtx* ctx, unsigned char* secret,
 
     WOLFPROV_ENTER(WP_LOG_COMP_X25519, "wp_x25519_derive");
 
-    /* Extensive debugging for Yocto/QEMU memory issues */
-    WOLFPROV_MSG_DEBUG(WP_LOG_COMP_X25519, "wp_x25519_derive: ENTER ctx=%p, secret=%p, secLen=%p, secSize=%zu",
-                       ctx, secret, secLen, secSize);
+    /* UNCONDITIONAL DEBUG: Always print to stderr regardless of debug build */
+    fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: ENTER ctx=%p, secret=%p, secLen=%p, secSize=%zu\n",
+            ctx, secret, secLen, secSize);
+    fflush(stderr);
     
     if (ctx != NULL) {
-        WOLFPROV_MSG_DEBUG(WP_LOG_COMP_X25519, "wp_x25519_derive: ctx->key=%p, ctx->peer=%p",
-                           ctx->key, ctx->peer);
+        fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: ctx->key=%p, ctx->peer=%p\n",
+                ctx->key, ctx->peer);
+        fflush(stderr);
     }
 
     if (!wolfssl_prov_is_running()) {
-        WOLFPROV_MSG(WP_LOG_COMP_X25519, "wp_x25519_derive: Provider not running!");
+        fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: Provider not running!\n");
+        fflush(stderr);
         ok = 0;
     }
 
     /* Validate context and keys before use */
     if (ok && ctx == NULL) {
-        WOLFPROV_MSG(WP_LOG_COMP_X25519, "wp_x25519_derive: ctx is NULL!");
+        fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: ctx is NULL!\n");
+        fflush(stderr);
         ok = 0;
     }
     if (ok && ctx->key == NULL) {
-        WOLFPROV_MSG(WP_LOG_COMP_X25519, "wp_x25519_derive: ctx->key is NULL!");
+        fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: ctx->key is NULL!\n");
+        fflush(stderr);
         ok = 0;
     }
     if (ok && ctx->peer == NULL) {
-        WOLFPROV_MSG(WP_LOG_COMP_X25519, "wp_x25519_derive: ctx->peer is NULL!");
+        fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: ctx->peer is NULL!\n");
+        fflush(stderr);
         ok = 0;
     }
 
     /* No output buffer, return secret size only. */
     if (ok && (secret == NULL)) {
         *secLen = CURVE25519_KEYSIZE;
-        WOLFPROV_MSG_DEBUG(WP_LOG_COMP_X25519, "wp_x25519_derive: Returning secret size only: %d", CURVE25519_KEYSIZE);
+        fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: Returning secret size only: %d\n", CURVE25519_KEYSIZE);
+        fflush(stderr);
     }
     else if (ok) {
         int rc;
@@ -287,36 +303,45 @@ static int wp_x25519_derive(wp_EcxCtx* ctx, unsigned char* secret,
         /* Get key pointers with validation */
         if (ctx->key != NULL) {
             key_ptr = wp_ecx_get_key(ctx->key);
-            WOLFPROV_MSG_DEBUG(WP_LOG_COMP_X25519, "wp_x25519_derive: Got key_ptr=%p from ctx->key", key_ptr);
+            fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: Got key_ptr=%p from ctx->key\n", key_ptr);
+            fflush(stderr);
             if (key_ptr == NULL) {
-                WOLFPROV_MSG(WP_LOG_COMP_X25519, "wp_x25519_derive: wp_ecx_get_key(ctx->key) returned NULL!");
+                fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: wp_ecx_get_key(ctx->key) returned NULL!\n");
+                fflush(stderr);
                 ok = 0;
             }
         } else {
-            WOLFPROV_MSG(WP_LOG_COMP_X25519, "wp_x25519_derive: ctx->key is NULL before wp_ecx_get_key!");
+            fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: ctx->key is NULL before wp_ecx_get_key!\n");
+            fflush(stderr);
             ok = 0;
         }
         
         if (ok && ctx->peer != NULL) {
             peer_ptr = wp_ecx_get_key(ctx->peer);
-            WOLFPROV_MSG_DEBUG(WP_LOG_COMP_X25519, "wp_x25519_derive: Got peer_ptr=%p from ctx->peer", peer_ptr);
+            fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: Got peer_ptr=%p from ctx->peer\n", peer_ptr);
+            fflush(stderr);
             if (peer_ptr == NULL) {
-                WOLFPROV_MSG(WP_LOG_COMP_X25519, "wp_x25519_derive: wp_ecx_get_key(ctx->peer) returned NULL!");
+                fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: wp_ecx_get_key(ctx->peer) returned NULL!\n");
+                fflush(stderr);
                 ok = 0;
             }
         } else if (ok) {
-            WOLFPROV_MSG(WP_LOG_COMP_X25519, "wp_x25519_derive: ctx->peer is NULL before wp_ecx_get_key!");
+            fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: ctx->peer is NULL before wp_ecx_get_key!\n");
+            fflush(stderr);
             ok = 0;
         }
 
         if (ok) {
-            WOLFPROV_MSG_DEBUG(WP_LOG_COMP_X25519, "wp_x25519_derive: Calling wc_curve25519_shared_secret with key_ptr=%p, peer_ptr=%p", 
-                               key_ptr, peer_ptr);
+            fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: Calling wc_curve25519_shared_secret with key_ptr=%p, peer_ptr=%p\n", 
+                    key_ptr, peer_ptr);
+            fflush(stderr);
             rc = wc_curve25519_shared_secret(key_ptr, peer_ptr, secret, &len);
-            WOLFPROV_MSG_DEBUG(WP_LOG_COMP_X25519, "wp_x25519_derive: wc_curve25519_shared_secret returned %d, len=%u", rc, len);
+            fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: wc_curve25519_shared_secret returned %d, len=%u\n", rc, len);
+            fflush(stderr);
             
             if (rc != 0) {
-                WOLFPROV_MSG_DEBUG_RETCODE(WP_LOG_COMP_X25519, "wc_curve25519_shared_secret", rc);
+                fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: wc_curve25519_shared_secret FAILED with rc=%d\n", rc);
+                fflush(stderr);
                 ok = 0;
             }
         }
@@ -348,7 +373,8 @@ static int wp_x25519_derive(wp_EcxCtx* ctx, unsigned char* secret,
         }
     }
 
-    WOLFPROV_MSG_DEBUG(WP_LOG_LEVEL_DEBUG, "wp_x25519_derive: EXIT returning %d", ok);
+    fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: EXIT returning %d\n", ok);
+    fflush(stderr);
     WOLFPROV_LEAVE(WP_LOG_COMP_X25519, __FILE__ ":" WOLFPROV_STRINGIZE(__LINE__), ok);
     return ok;
 }
