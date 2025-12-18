@@ -243,31 +243,26 @@ static int wp_ecx_set_peer(wp_EcxCtx* ctx, wp_Ecx* peer)
                     rc, peer_pub_len, CURVE25519_KEYSIZE);
             fflush(stderr);
             if (rc == 0 && peer_pub_len == CURVE25519_KEYSIZE) {
-                /* This is X25519 - apply MSB clearing fix */
-                fprintf(stderr, "[X25519-DEBUG] wp_ecx_set_peer: Confirmed X25519 key, checking MSB. Last byte=0x%02x\n", 
+                /* This is X25519 - always normalize the key by re-importing */
+                /* Even if exported bytes show MSB clear, the internal representation */
+                /* might have MSB set, which causes wc_curve25519_shared_secret to fail */
+                fprintf(stderr, "[X25519-DEBUG] wp_ecx_set_peer: Confirmed X25519 key, normalizing MSB. Last byte=0x%02x\n", 
                         peer_pub[CURVE25519_KEYSIZE - 1]);
                 fflush(stderr);
-                /* Check if MSB (bit 7 of last byte) is set - RFC 7748 requires it to be clear */
-                if ((peer_pub[CURVE25519_KEYSIZE - 1] & 0x80) != 0x00) {
-                    fprintf(stderr, "[X25519-DEBUG] wp_ecx_set_peer: X25519 peer key MSB is set, clearing it (RFC 7748)\n");
+                /* Always clear MSB and re-import to ensure internal representation is correct */
+                /* This matches wp_x25519_import_public behavior */
+                peer_pub[CURVE25519_KEYSIZE - 1] &= 0x7f;
+                fprintf(stderr, "[X25519-DEBUG] wp_ecx_set_peer: After MSB normalization, last byte=0x%02x\n", 
+                        peer_pub[CURVE25519_KEYSIZE - 1]);
+                fflush(stderr);
+                /* Re-import using wc_curve25519_import_public_ex to normalize internal state */
+                rc = wc_curve25519_import_public_ex(peer_pub, CURVE25519_KEYSIZE, (curve25519_key*)peer_key, EC25519_LITTLE_ENDIAN);
+                if (rc != 0) {
+                    fprintf(stderr, "[X25519-DEBUG] wp_ecx_set_peer: Failed to re-import X25519 peer key with normalized MSB, rc=%d\n", rc);
                     fflush(stderr);
-                    /* Clear MSB (same logic as wp_x25519_import_public) */
-                    peer_pub[CURVE25519_KEYSIZE - 1] &= 0x7f;
-                    fprintf(stderr, "[X25519-DEBUG] wp_ecx_set_peer: After clearing, last byte=0x%02x\n", 
-                            peer_pub[CURVE25519_KEYSIZE - 1]);
-                    fflush(stderr);
-                    /* Re-import using wc_curve25519_import_public_ex directly */
-                    rc = wc_curve25519_import_public_ex(peer_pub, CURVE25519_KEYSIZE, (curve25519_key*)peer_key, EC25519_LITTLE_ENDIAN);
-                    if (rc != 0) {
-                        fprintf(stderr, "[X25519-DEBUG] wp_ecx_set_peer: Failed to re-import X25519 peer key with MSB cleared, rc=%d\n", rc);
-                        fflush(stderr);
-                        ok = 0;
-                    } else {
-                        fprintf(stderr, "[X25519-DEBUG] wp_ecx_set_peer: X25519 peer key re-imported with MSB cleared successfully\n");
-                        fflush(stderr);
-                    }
+                    ok = 0;
                 } else {
-                    fprintf(stderr, "[X25519-DEBUG] wp_ecx_set_peer: X25519 peer key MSB already clear, no fix needed\n");
+                    fprintf(stderr, "[X25519-DEBUG] wp_ecx_set_peer: X25519 peer key re-imported with normalized MSB successfully\n");
                     fflush(stderr);
                 }
             } else {
