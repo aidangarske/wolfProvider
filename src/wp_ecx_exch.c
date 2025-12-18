@@ -812,38 +812,138 @@ static int wp_x448_derive(wp_EcxCtx* ctx, unsigned char* secret,
     int ok = 1;
 
     WOLFPROV_ENTER(WP_LOG_COMP_X448, "wp_x448_derive");
+    fprintf(stderr, "[X448-DEBUG] wp_x448_derive: ENTER ctx=%p, secret=%p, secLen=%p, secSize=%zu\n",
+            ctx, secret, secLen, secSize);
+    fflush(stderr);
 
     if (!wolfssl_prov_is_running()) {
+        fprintf(stderr, "[X448-DEBUG] wp_x448_derive: Provider not running!\n");
+        fflush(stderr);
         ok = 0;
     }
 
     /* No output buffer, return secret size only. */
     if (ok && (secret == NULL)) {
         *secLen = CURVE448_KEY_SIZE;
+        fprintf(stderr, "[X448-DEBUG] wp_x448_derive: Returning secret size only: %d\n", CURVE448_KEY_SIZE);
+        fflush(stderr);
     }
     else if (ok) {
         int rc;
         word32 len = (word32)secSize;
+        void* key_ptr = NULL;
+        void* peer_ptr = NULL;
 
-        rc = wc_curve448_shared_secret(wp_ecx_get_key(ctx->key),
-            wp_ecx_get_key(ctx->peer), secret, &len);
-        if (rc != 0) {
-            WOLFPROV_MSG_DEBUG_RETCODE(WP_LOG_LEVEL_DEBUG, "wc_curve448_shared_secret", rc);
+        /* Get key pointers */
+        if (ctx->key != NULL) {
+            key_ptr = wp_ecx_get_key(ctx->key);
+            fprintf(stderr, "[X448-DEBUG] wp_x448_derive: Got key_ptr=%p from ctx->key\n", key_ptr);
+            fflush(stderr);
+            if (key_ptr == NULL) {
+                fprintf(stderr, "[X448-DEBUG] wp_x448_derive: wp_ecx_get_key(ctx->key) returned NULL!\n");
+                fflush(stderr);
+                ok = 0;
+            }
+        } else {
+            fprintf(stderr, "[X448-DEBUG] wp_x448_derive: ctx->key is NULL!\n");
+            fflush(stderr);
             ok = 0;
         }
+
+        if (ok && ctx->peer != NULL) {
+            peer_ptr = wp_ecx_get_key(ctx->peer);
+            fprintf(stderr, "[X448-DEBUG] wp_x448_derive: Got peer_ptr=%p from ctx->peer\n", peer_ptr);
+            fflush(stderr);
+            if (peer_ptr == NULL) {
+                fprintf(stderr, "[X448-DEBUG] wp_x448_derive: wp_ecx_get_key(ctx->peer) returned NULL!\n");
+                fflush(stderr);
+                ok = 0;
+            }
+        } else if (ok) {
+            fprintf(stderr, "[X448-DEBUG] wp_x448_derive: ctx->peer is NULL!\n");
+            fflush(stderr);
+            ok = 0;
+        }
+
+        if (ok) {
+            curve448_key* local_key = (curve448_key*)key_ptr;
+            curve448_key* peer_key_derive = (curve448_key*)peer_ptr;
+
+            fprintf(stderr, "[X448-DEBUG] wp_x448_derive: ===== KEY STATE BEFORE OPERATION =====\n");
+            fprintf(stderr, "[X448-DEBUG] wp_x448_derive: local_key=%p, peer_key_derive=%p\n",
+                    local_key, peer_key_derive);
+            fflush(stderr);
+
+            /* Export and check both keys */
+            byte local_pub[CURVE448_KEY_SIZE];
+            byte peer_pub[CURVE448_KEY_SIZE];
+            word32 local_pub_len = CURVE448_KEY_SIZE;
+            word32 peer_pub_len = CURVE448_KEY_SIZE;
+
+            int rc_local_pub = wc_curve448_export_public_ex(local_key, local_pub, &local_pub_len, EC448_LITTLE_ENDIAN);
+            int rc_peer_pub = wc_curve448_export_public_ex(peer_key_derive, peer_pub, &peer_pub_len, EC448_LITTLE_ENDIAN);
+
+            fprintf(stderr, "[X448-DEBUG] wp_x448_derive: LOCAL key export - pub: rc=%d, len=%u\n",
+                    rc_local_pub, local_pub_len);
+            fprintf(stderr, "[X448-DEBUG] wp_x448_derive: PEER key export - pub: rc=%d, len=%u\n",
+                    rc_peer_pub, peer_pub_len);
+            fflush(stderr);
+
+            /* Validate keys */
+            int check_local = -1;
+            int check_peer = -1;
+            if (rc_local_pub == 0 && local_pub_len == CURVE448_KEY_SIZE) {
+                check_local = wc_curve448_check_public(local_pub, local_pub_len, EC448_LITTLE_ENDIAN);
+            }
+            if (rc_peer_pub == 0 && peer_pub_len == CURVE448_KEY_SIZE) {
+                check_peer = wc_curve448_check_public(peer_pub, peer_pub_len, EC448_LITTLE_ENDIAN);
+            }
+            fprintf(stderr, "[X448-DEBUG] wp_x448_derive: Key validation checks - local=%d, peer=%d (0=valid)\n",
+                    check_local, check_peer);
+            fflush(stderr);
+
+            fprintf(stderr, "[X448-DEBUG] wp_x448_derive: ===== CALLING wc_curve448_shared_secret =====\n");
+            fprintf(stderr, "[X448-DEBUG] wp_x448_derive: Function call: wc_curve448_shared_secret(local_key=%p, peer_key=%p, secret=%p, len=%p)\n",
+                    local_key, peer_key_derive, secret, &len);
+            fflush(stderr);
+
+            rc = wc_curve448_shared_secret(local_key, peer_key_derive, secret, &len);
+
+            fprintf(stderr, "[X448-DEBUG] wp_x448_derive: ===== RESULT FROM wc_curve448_shared_secret =====\n");
+            fprintf(stderr, "[X448-DEBUG] wp_x448_derive: Return code: %d (0=success)\n", rc);
+            fprintf(stderr, "[X448-DEBUG] wp_x448_derive: Output length: %u\n", len);
+            fflush(stderr);
+
+            if (rc != 0) {
+                fprintf(stderr, "[X448-DEBUG] wp_x448_derive: wc_curve448_shared_secret FAILED with rc=%d\n", rc);
+                fflush(stderr);
+                WOLFPROV_MSG_DEBUG_RETCODE(WP_LOG_LEVEL_DEBUG, "wc_curve448_shared_secret", rc);
+                ok = 0;
+            }
+        }
+
         if (ok) {
             word32 i;
 
             *secLen = len;
+            fprintf(stderr, "[X448-DEBUG] wp_x448_derive: Before endian swap - first 4 bytes: 0x%02x 0x%02x 0x%02x 0x%02x\n",
+                    secret[0], secret[1], secret[2], secret[3]);
+            fflush(stderr);
             /* Switch endian. */
             for (i = 0; i < len / 2; i++) {
                 byte t = secret[i];
                 secret[i] = secret[len - 1 - i];
                 secret[len - 1 - i] = t;
             }
+            fprintf(stderr, "[X448-DEBUG] wp_x448_derive: After endian swap - first 4 bytes: 0x%02x 0x%02x 0x%02x 0x%02x\n",
+                    secret[0], secret[1], secret[2], secret[3]);
+            fprintf(stderr, "[X448-DEBUG] wp_x448_derive: SUCCESS - shared secret derived, len=%u\n", len);
+            fflush(stderr);
         }
     }
 
+    fprintf(stderr, "[X448-DEBUG] wp_x448_derive: EXIT returning %d\n", ok);
+    fflush(stderr);
     WOLFPROV_LEAVE(WP_LOG_COMP_X448, __FILE__ ":" WOLFPROV_STRINGIZE(__LINE__), ok);
     return ok;
 }

@@ -1430,6 +1430,43 @@ static wp_Ecx* wp_ecx_gen(wp_EcxGenCtx* ctx, OSSL_CALLBACK* osslcb, void* cbarg)
                 }
             }
             #endif
+            /* FIX for wolfSSL PR #9543: Also check X448 keys after generation */
+            /* The new check in wolfSSL may set pubSet=false if validation fails */
+            #ifdef WP_HAVE_X448
+            if (ecx != NULL && ecx->data->keyType == WP_KEY_TYPE_X448) {
+                curve448_key* key = (curve448_key*)&ecx->key.x448;
+                byte pub_key[CURVE448_KEY_SIZE];
+                word32 pub_len = CURVE448_KEY_SIZE;
+                int export_rc = wc_curve448_export_public_ex(key, pub_key, &pub_len, EC448_LITTLE_ENDIAN);
+                if (export_rc == 0 && pub_len == CURVE448_KEY_SIZE) {
+                    /* X448 doesn't have MSB requirement, but verify the key is valid */
+                    int check_rc = wc_curve448_check_public(pub_key, pub_len, EC448_LITTLE_ENDIAN);
+                    if (check_rc != 0) {
+                        fprintf(stderr, "[X448-DEBUG] wp_ecx_gen: Generated X448 key failed validation check, rc=%d\n", check_rc);
+                        fflush(stderr);
+                        /* Re-import to try to fix pubSet */
+                        int import_rc = wc_curve448_import_public_ex(pub_key, CURVE448_KEY_SIZE, key, EC448_LITTLE_ENDIAN);
+                        if (import_rc != 0) {
+                            fprintf(stderr, "[X448-DEBUG] wp_ecx_gen: Failed to re-import X448 public key, rc=%d\n", import_rc);
+                            fflush(stderr);
+                            WOLFPROV_MSG_DEBUG_RETCODE(WP_LOG_LEVEL_DEBUG, "wc_curve448_import_public_ex", import_rc);
+                            wp_ecx_free(ecx);
+                            ecx = NULL;
+                        } else {
+                            fprintf(stderr, "[X448-DEBUG] wp_ecx_gen: Successfully re-imported X448 key, pubSet should now be true\n");
+                            fflush(stderr);
+                        }
+                    } else {
+                        fprintf(stderr, "[X448-DEBUG] wp_ecx_gen: Generated X448 key is valid, pubSet should be true\n");
+                        fflush(stderr);
+                    }
+                } else {
+                    fprintf(stderr, "[X448-DEBUG] wp_ecx_gen: Failed to export X448 public key after generation, rc=%d, len=%u\n",
+                            export_rc, pub_len);
+                    fflush(stderr);
+                }
+            }
+            #endif
             if (ecx != NULL) {
                 ecx->hasPub = 1;
                 ecx->hasPriv = 1;
