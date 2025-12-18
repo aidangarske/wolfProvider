@@ -220,37 +220,44 @@ static int wp_ecx_set_peer(wp_EcxCtx* ctx, wp_Ecx* peer)
     /* 1. Fix once when peer is set, not on every derive call */
     /* 2. wp_ecx_set_peer bypasses wp_x25519_import_public which normally clears MSB */
     /* 3. OpenSSL's default provider clears MSB during import, we must do the same */
-    /* 4. We re-import using peer->data->importPub (wp_x25519_import_public) which handles MSB clearing */
-    if (ok && peer != NULL && peer->data != NULL && peer->data->importPub != NULL) {
-        curve25519_key* peer_key = (curve25519_key*)wp_ecx_get_key(peer);
+    /* 4. We clear MSB directly and re-import using wc_curve25519_import_public_ex (same as wp_x25519_import_public) */
+    /* NOTE: This fix ONLY applies to X25519 (32-byte keys), NOT X448 (56-byte keys) */
+#ifdef WP_HAVE_X25519
+    if (ok && peer != NULL) {
+        void* peer_key = wp_ecx_get_key(peer);
         if (peer_key != NULL) {
             byte peer_pub[CURVE25519_KEYSIZE];
             word32 peer_pub_len = CURVE25519_KEYSIZE;
             int rc;
             
-            /* Export peer public key to get raw bytes */
-            rc = wc_curve25519_export_public_ex(peer_key, peer_pub, &peer_pub_len, EC25519_LITTLE_ENDIAN);
+            /* Try to export as X25519 - if successful and size is 32, it's X25519 */
+            /* If this fails or returns wrong size, it's X448 and we skip the MSB fix */
+            rc = wc_curve25519_export_public_ex((curve25519_key*)peer_key, peer_pub, &peer_pub_len, EC25519_LITTLE_ENDIAN);
             if (rc == 0 && peer_pub_len == CURVE25519_KEYSIZE) {
+                /* This is X25519 - apply MSB clearing fix */
                 /* Check if MSB (bit 7 of last byte) is set - RFC 7748 requires it to be clear */
                 if ((peer_pub[CURVE25519_KEYSIZE - 1] & 0x80) != 0x00) {
-                    fprintf(stderr, "[X25519-DEBUG] wp_ecx_set_peer: Peer key MSB is set, re-importing with MSB cleared (RFC 7748)\n");
+                    fprintf(stderr, "[X25519-DEBUG] wp_ecx_set_peer: X25519 peer key MSB is set, clearing it (RFC 7748)\n");
                     fflush(stderr);
-                    /* Re-import using wp_x25519_import_public (via peer->data->importPub) */
-                    /* This function automatically clears MSB if set - matching OpenSSL's behavior */
-                    /* We pass the exported bytes (which may have MSB set) and let importPub handle clearing */
-                    rc = (*peer->data->importPub)(peer_pub, CURVE25519_KEYSIZE, peer_key, EC25519_LITTLE_ENDIAN);
+                    /* Clear MSB (same logic as wp_x25519_import_public) */
+                    peer_pub[CURVE25519_KEYSIZE - 1] &= 0x7f;
+                    /* Re-import using wc_curve25519_import_public_ex directly */
+                    rc = wc_curve25519_import_public_ex(peer_pub, CURVE25519_KEYSIZE, (curve25519_key*)peer_key, EC25519_LITTLE_ENDIAN);
                     if (rc != 0) {
-                        fprintf(stderr, "[X25519-DEBUG] wp_ecx_set_peer: Failed to re-import peer key with MSB cleared, rc=%d\n", rc);
+                        fprintf(stderr, "[X25519-DEBUG] wp_ecx_set_peer: Failed to re-import X25519 peer key with MSB cleared, rc=%d\n", rc);
                         fflush(stderr);
                         ok = 0;
                     } else {
-                        fprintf(stderr, "[X25519-DEBUG] wp_ecx_set_peer: Peer key re-imported with MSB cleared successfully\n");
+                        fprintf(stderr, "[X25519-DEBUG] wp_ecx_set_peer: X25519 peer key re-imported with MSB cleared successfully\n");
                         fflush(stderr);
                     }
                 }
             }
+            /* If export failed or size != 32, it's X448 or another type - skip MSB fix */
+            /* X448 doesn't require MSB clearing per RFC 7748 */
         }
     }
+#endif /* WP_HAVE_X25519 */
     
     if (ok) {
         ctx->peer = peer;
