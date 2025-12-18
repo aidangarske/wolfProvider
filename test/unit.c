@@ -59,70 +59,18 @@ DSO *DSO_dsobyaddr(void *addr, int flags);
 void *DSO_bind_func(DSO *dso, const char *symname);
 int DSO_free(DSO *dso);
 
-/* Function pointer types for OpenSSL internal provider functions.
+/* Forward declarations for OpenSSL internal provider functions.
  * These are not part of the public API but are needed to manually
- * construct and register a provider with a specific init function.
- * We use function pointers loaded via DSO_bind_func to avoid linker errors
- * when OpenSSL isn't patched to export these symbols. */
-typedef OSSL_PROVIDER *(*ossl_provider_new_fn)(OSSL_LIB_CTX *libctx, const char *name,
-                                                OSSL_provider_init_fn *init_fn,
-                                                int no_config);
-typedef int (*ossl_provider_activate_fn)(OSSL_PROVIDER *prov, int retain_fallbacks,
-                                         int upcalls);
-typedef int (*ossl_provider_deactivate_fn)(OSSL_PROVIDER *prov, int removechildren);
-typedef int (*ossl_provider_add_to_store_fn)(OSSL_PROVIDER *prov, OSSL_PROVIDER **actualprov,
-                                              int retain_fallbacks);
-typedef void (*ossl_provider_free_fn)(OSSL_PROVIDER *prov);
-
-/* Cache for function pointers - loaded once and reused */
-static DSO *provider_dso = NULL;
-static ossl_provider_new_fn fp_ossl_provider_new = NULL;
-static ossl_provider_activate_fn fp_ossl_provider_activate = NULL;
-static ossl_provider_deactivate_fn fp_ossl_provider_deactivate = NULL;
-static ossl_provider_add_to_store_fn fp_ossl_provider_add_to_store = NULL;
-static ossl_provider_free_fn fp_ossl_provider_free = NULL;
-
-/*
- * Load the ossl_provider_* function pointers from libcrypto.
- * This avoids linker errors when OpenSSL isn't patched to export these symbols.
- * 
- * @return  1 on success.
- * @return  0 on failure.
- */
-static int wp_load_provider_functions(void)
-{
-    if (provider_dso != NULL) {
-        /* Already loaded */
-        return 1;
-    }
-
-    /* Get a DSO handle for the library containing OPENSSL_init_crypto */
-    provider_dso = DSO_dsobyaddr((void *)&OPENSSL_init_crypto, 0);
-    if (provider_dso == NULL) {
-        PRINT_ERR_MSG("DSO_dsobyaddr() failed to get handle to libcrypto");
-        return 0;
-    }
-
-    /* Load all provider function pointers */
-    fp_ossl_provider_new = (ossl_provider_new_fn)DSO_bind_func(provider_dso, "ossl_provider_new");
-    fp_ossl_provider_activate = (ossl_provider_activate_fn)DSO_bind_func(provider_dso, "ossl_provider_activate");
-    fp_ossl_provider_deactivate = (ossl_provider_deactivate_fn)DSO_bind_func(provider_dso, "ossl_provider_deactivate");
-    fp_ossl_provider_add_to_store = (ossl_provider_add_to_store_fn)DSO_bind_func(provider_dso, "ossl_provider_add_to_store");
-    fp_ossl_provider_free = (ossl_provider_free_fn)DSO_bind_func(provider_dso, "ossl_provider_free");
-
-    /* Check if all functions were loaded */
-    if (fp_ossl_provider_new == NULL || fp_ossl_provider_activate == NULL ||
-        fp_ossl_provider_deactivate == NULL || fp_ossl_provider_add_to_store == NULL ||
-        fp_ossl_provider_free == NULL) {
-        PRINT_ERR_MSG("Failed to load one or more ossl_provider_* functions via DSO API");
-        PRINT_ERR_MSG("OpenSSL may not be patched with --enable-replace-default-testing");
-        DSO_free(provider_dso);
-        provider_dso = NULL;
-        return 0;
-    }
-
-    return 1;
-}
+ * construct and register a provider with a specific init function. */
+OSSL_PROVIDER *ossl_provider_new(OSSL_LIB_CTX *libctx, const char *name,
+                                  OSSL_provider_init_fn *init_fn,
+                                  int no_config);
+int ossl_provider_activate(OSSL_PROVIDER *prov, int retain_fallbacks,
+                            int upcalls);
+int ossl_provider_deactivate(OSSL_PROVIDER *prov, int removechildren);
+int ossl_provider_add_to_store(OSSL_PROVIDER *prov, OSSL_PROVIDER **actualprov,
+                                int retain_fallbacks);
+void ossl_provider_free(OSSL_PROVIDER *prov);
 
 /*
  * Get the ossl_default_provider_init function pointer from OpenSSL's
@@ -175,12 +123,6 @@ static OSSL_PROVIDER* wp_load_default_provider_direct(OSSL_LIB_CTX* libctx)
     OSSL_PROVIDER* prov = NULL;
     OSSL_PROVIDER* actual = NULL;
 
-    /* Load provider function pointers if not already loaded */
-    if (!wp_load_provider_functions()) {
-        PRINT_ERR_MSG("Failed to load provider functions");
-        return NULL;
-    }
-
     /* Get the real default provider init function */
     init_fn = wp_get_default_provider_init_sym();
     if (init_fn == NULL) {
@@ -189,32 +131,32 @@ static OSSL_PROVIDER* wp_load_default_provider_direct(OSSL_LIB_CTX* libctx)
     }
 
     /* Create a new provider structure with the name "real-default" */
-    prov = fp_ossl_provider_new(libctx, "real-default", init_fn, 0);
+    prov = ossl_provider_new(libctx, "real-default", init_fn, 0);
     if (prov == NULL) {
         PRINT_ERR_MSG("ossl_provider_new() failed");
         return NULL;
     }
 
     /* Activate the provider */
-    if (!fp_ossl_provider_activate(prov, 1, 0)) {
+    if (!ossl_provider_activate(prov, 1, 0)) {
         PRINT_ERR_MSG("ossl_provider_activate() failed");
-        fp_ossl_provider_free(prov);
+        ossl_provider_free(prov);
         return NULL;
     }
 
     /* Add provider to the store */
     actual = prov;
-    if (!fp_ossl_provider_add_to_store(prov, &actual, 0)) {
+    if (!ossl_provider_add_to_store(prov, &actual, 0)) {
         PRINT_ERR_MSG("ossl_provider_add_to_store() failed");
-        fp_ossl_provider_deactivate(prov, 1);
-        fp_ossl_provider_free(prov);
+        ossl_provider_deactivate(prov, 1);
+        ossl_provider_free(prov);
         return NULL;
     }
 
     if (actual != prov) {
-        if (!fp_ossl_provider_activate(actual, 1, 0)) {
+        if (!ossl_provider_activate(actual, 1, 0)) {
             PRINT_ERR_MSG("ossl_provider_activate() failed");
-            fp_ossl_provider_free(actual);
+            ossl_provider_free(actual);
             return NULL;
         }
     }
