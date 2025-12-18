@@ -271,14 +271,24 @@ static wp_Ecx* wp_ecx_new(WOLFPROV_CTX* provCtx, const wp_EcxData* data)
 {
     wp_Ecx* ecx = NULL;
 
+    fprintf(stderr, "[X25519-DEBUG] wp_ecx_new: ENTER provCtx=%p, data=%p\n", provCtx, data);
+    fflush(stderr);
+
     if (wolfssl_prov_is_running()) {
         ecx = (wp_Ecx*)OPENSSL_zalloc(sizeof(*ecx));
+        fprintf(stderr, "[X25519-DEBUG] wp_ecx_new: Allocated ecx=%p, size=%zu\n", ecx, sizeof(*ecx));
+        fflush(stderr);
     }
     if (ecx != NULL) {
         int ok = 1;
         int rc;
 
+        fprintf(stderr, "[X25519-DEBUG] wp_ecx_new: Calling data->initKey(&ecx->key), &ecx->key=%p\n", 
+                (void*)&ecx->key);
+        fflush(stderr);
         rc = (*data->initKey)((void*)&ecx->key);
+        fprintf(stderr, "[X25519-DEBUG] wp_ecx_new: initKey returned %d\n", rc);
+        fflush(stderr);
         if (rc != 0) {
             WOLFPROV_MSG_DEBUG_RETCODE(WP_LOG_LEVEL_DEBUG, "initKey", rc);
             ok = 0;
@@ -299,14 +309,24 @@ static wp_Ecx* wp_ecx_new(WOLFPROV_CTX* provCtx, const wp_EcxData* data)
             ecx->provCtx = provCtx;
             ecx->refCnt  = 1;
             ecx->data    = data;
+            fprintf(stderr, "[X25519-DEBUG] wp_ecx_new: Key initialized successfully, ecx=%p, refCnt=%d\n", 
+                    ecx, ecx->refCnt);
+            fflush(stderr);
         }
 
         if (!ok) {
+            fprintf(stderr, "[X25519-DEBUG] wp_ecx_new: Initialization failed, freeing ecx\n");
+            fflush(stderr);
             OPENSSL_free(ecx);
             ecx = NULL;
         }
+    } else {
+        fprintf(stderr, "[X25519-DEBUG] wp_ecx_new: Failed to allocate ecx or provider not running\n");
+        fflush(stderr);
     }
 
+    fprintf(stderr, "[X25519-DEBUG] wp_ecx_new: EXIT returning ecx=%p\n", ecx);
+    fflush(stderr);
     return ecx;
 }
 
@@ -454,6 +474,14 @@ static int wp_ecx_set_params(wp_Ecx* ecx, const OSSL_PARAM params[])
     size_t len;
 
     WOLFPROV_ENTER(WP_LOG_COMP_KE, "wp_ecx_set_params");
+    fprintf(stderr, "[X25519-DEBUG] wp_ecx_set_params: ENTER ecx=%p\n", ecx);
+    if (ecx != NULL) {
+        fprintf(stderr, "[X25519-DEBUG] wp_ecx_set_params: ecx->data=%p, ecx->refCnt=%d\n", 
+                ecx->data, ecx->refCnt);
+        fprintf(stderr, "[X25519-DEBUG] wp_ecx_set_params: ecx->hasPub=%d, ecx->hasPriv=%d, ecx->clamped=%d\n",
+                ecx->hasPub, ecx->hasPriv, ecx->clamped);
+    }
+    fflush(stderr);
 
     if (!wp_params_get_octet_string_ptr(params,
             OSSL_PKEY_PARAM_ENCODED_PUBLIC_KEY, &data, &len)) {
@@ -462,24 +490,31 @@ static int wp_ecx_set_params(wp_Ecx* ecx, const OSSL_PARAM params[])
     if (ok && (data != NULL)) {
         /* UNCONDITIONAL DEBUG: Track if peer key goes through set_params path */
         fprintf(stderr, "[X25519-DEBUG] wp_ecx_set_params: Setting ENCODED_PUBLIC_KEY via importPub, len=%zu\n", len);
+        fprintf(stderr, "[X25519-DEBUG] wp_ecx_set_params: data pointer=%p\n", data);
         if (len >= CURVE25519_KEYSIZE) {
             fprintf(stderr, "[X25519-DEBUG] wp_ecx_set_params: Last byte before import: 0x%02x (MSB=%d)\n", 
                     data[CURVE25519_KEYSIZE - 1], (data[CURVE25519_KEYSIZE - 1] & 0x80) ? 1 : 0);
         }
+        fprintf(stderr, "[X25519-DEBUG] wp_ecx_set_params: Calling importPub with &ecx->key=%p\n", 
+                (void*)&ecx->key);
         fflush(stderr);
         int rc = (*ecx->data->importPub)(data, (word32)len, (void*)&ecx->key,
             ECX_LITTLE_ENDIAN);
+        fprintf(stderr, "[X25519-DEBUG] wp_ecx_set_params: importPub returned %d\n", rc);
+        fflush(stderr);
         if (rc != 0) {
             WOLFPROV_MSG_DEBUG_RETCODE(WP_LOG_LEVEL_DEBUG, "importPub", rc);
             ok = 0;
         }
         if (ok) {
             ecx->hasPub = 1;
-            fprintf(stderr, "[X25519-DEBUG] wp_ecx_set_params: Public key set successfully\n");
+            fprintf(stderr, "[X25519-DEBUG] wp_ecx_set_params: Public key set successfully, ecx->hasPub=%d\n", ecx->hasPub);
             fflush(stderr);
         }
     }
 
+    fprintf(stderr, "[X25519-DEBUG] wp_ecx_set_params: EXIT returning %d\n", ok);
+    fflush(stderr);
     WOLFPROV_LEAVE(WP_LOG_COMP_KE, __FILE__ ":" WOLFPROV_STRINGIZE(__LINE__), ok);
     return ok;
 }
@@ -1433,6 +1468,11 @@ static int wp_x25519_import_public(const byte* in, word32 inLen,
     curve25519_key* key, int endian)
 {
     unsigned char data[CURVE25519_KEYSIZE];
+    int rc;
+
+    fprintf(stderr, "[X25519-DEBUG] wp_x25519_import_public: ENTER in=%p, inLen=%u, key=%p, endian=%d\n",
+            in, inLen, key, endian);
+    fflush(stderr);
 
     /* UNCONDITIONAL DEBUG: Track MSB clearing in import */
     if (inLen >= CURVE25519_KEYSIZE) {
@@ -1454,7 +1494,33 @@ static int wp_x25519_import_public(const byte* in, word32 inLen,
         fprintf(stderr, "[X25519-DEBUG] wp_x25519_import_public: MSB already clear, no fix needed\n");
         fflush(stderr);
     }
-    return wc_curve25519_import_public_ex(in, inLen, key, endian);
+    
+    fprintf(stderr, "[X25519-DEBUG] wp_x25519_import_public: Calling wc_curve25519_import_public_ex(in=%p, inLen=%u, key=%p, endian=%d)\n",
+            in, inLen, key, endian);
+    fflush(stderr);
+    rc = wc_curve25519_import_public_ex(in, inLen, key, endian);
+    fprintf(stderr, "[X25519-DEBUG] wp_x25519_import_public: wc_curve25519_import_public_ex returned %d\n", rc);
+    fflush(stderr);
+    
+    /* Verify the import by exporting */
+    if (rc == 0) {
+        byte verify_pub[CURVE25519_KEYSIZE];
+        word32 verify_len = CURVE25519_KEYSIZE;
+        int verify_rc = wc_curve25519_export_public_ex(key, verify_pub, &verify_len, endian);
+        if (verify_rc == 0 && verify_len == CURVE25519_KEYSIZE) {
+            fprintf(stderr, "[X25519-DEBUG] wp_x25519_import_public: Verification export - last byte=0x%02x (MSB=%s)\n",
+                    verify_pub[CURVE25519_KEYSIZE - 1],
+                    (verify_pub[CURVE25519_KEYSIZE - 1] & 0x80) ? "SET" : "CLEAR");
+        } else {
+            fprintf(stderr, "[X25519-DEBUG] wp_x25519_import_public: Verification export failed: rc=%d, len=%u\n",
+                    verify_rc, verify_len);
+        }
+        fflush(stderr);
+    }
+    
+    fprintf(stderr, "[X25519-DEBUG] wp_x25519_import_public: EXIT returning %d\n", rc);
+    fflush(stderr);
+    return rc;
 }
 
 /**
