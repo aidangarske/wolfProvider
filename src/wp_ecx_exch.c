@@ -476,8 +476,21 @@ static int wp_x25519_derive(wp_EcxCtx* ctx, unsigned char* secret,
                     rc_local_pub, local_pub_len, 
                     (local_pub_len == CURVE25519_KEYSIZE) ? local_pub[CURVE25519_KEYSIZE - 1] : 0,
                     (local_pub_len == CURVE25519_KEYSIZE && (local_pub[CURVE25519_KEYSIZE - 1] & 0x80)) ? "SET" : "CLEAR");
-            fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: LOCAL key export - priv: rc=%d, len=%u\n",
-                    rc_local_priv, local_priv_len);
+            fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: LOCAL key export - priv: rc=%d, len=%u", rc_local_priv, local_priv_len);
+            if (rc_local_priv == 0 && local_priv_len == CURVE25519_KEYSIZE) {
+                /* Check private key clamping: bits 0,1,2 should be 0, bit 254 should be 0, bit 255 should be 0 */
+                int bit0 = (local_priv[0] & 0x07);
+                int bit254 = (local_priv[31] & 0x40) >> 6;
+                int bit255 = (local_priv[31] & 0x80) >> 7;
+                fprintf(stderr, ", first_byte=0x%02x (bits 0-2=%d), last_byte=0x%02x (bit254=%d, bit255=%d)", 
+                        local_priv[0], bit0, local_priv[31], bit254, bit255);
+                if (bit0 != 0 || bit254 != 0 || bit255 != 0) {
+                    fprintf(stderr, " [NOT PROPERLY CLAMPED!]");
+                } else {
+                    fprintf(stderr, " [PROPERLY CLAMPED]");
+                }
+            }
+            fprintf(stderr, "\n");
             fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: PEER key export - pub: rc=%d, len=%u, last_byte=0x%02x (MSB=%s)\n",
                     rc_peer_pub, peer_pub_len,
                     (peer_pub_len == CURVE25519_KEYSIZE) ? peer_pub[CURVE25519_KEYSIZE - 1] : 0,
@@ -497,41 +510,179 @@ static int wp_x25519_derive(wp_EcxCtx* ctx, unsigned char* secret,
                     check_local, check_peer);
             fflush(stderr);
             
-            fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: ===== CALLING wc_curve25519_shared_secret =====\n");
-            fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: Function call: wc_curve25519_shared_secret(local_key=%p, peer_key=%p, secret=%p, len=%p)\n",
-                    local_key, peer_key_derive, secret, &len);
+            /* CRITICAL: Check if local key has private key before calling shared_secret */
+            /* wc_curve25519_shared_secret requires local key to have a private key */
+            if (rc_local_priv != 0 || local_priv_len != CURVE25519_KEYSIZE) {
+                fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: ERROR - Local key private key export failed! rc=%d, len=%u\n",
+                        rc_local_priv, local_priv_len);
+                fflush(stderr);
+                ok = 0;
+            }
+            
+            fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: ===== PRE-CALL VALIDATION =====\n");
+            fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: Validating keys before wc_curve25519_shared_secret call...\n");
             fflush(stderr);
             
-            rc = wc_curve25519_shared_secret(local_key, peer_key_derive, secret, &len);
+            /* Additional validation: Try to check public keys directly from key structures */
+            int check_local_direct = -999;
+            int check_peer_direct = -999;
+            if (rc_local_pub == 0 && local_pub_len == CURVE25519_KEYSIZE) {
+                fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: [PRE-CALL] Calling wc_curve25519_check_public on LOCAL exported bytes...\n");
+                fflush(stderr);
+                check_local_direct = wc_curve25519_check_public(local_pub, local_pub_len, EC25519_LITTLE_ENDIAN);
+                fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: [PRE-CALL] wc_curve25519_check_public(LOCAL) returned %d (0=valid)\n", check_local_direct);
+                fflush(stderr);
+            }
+            if (rc_peer_pub == 0 && peer_pub_len == CURVE25519_KEYSIZE) {
+                fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: [PRE-CALL] Calling wc_curve25519_check_public on PEER exported bytes...\n");
+                fflush(stderr);
+                check_peer_direct = wc_curve25519_check_public(peer_pub, peer_pub_len, EC25519_LITTLE_ENDIAN);
+                fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: [PRE-CALL] wc_curve25519_check_public(PEER) returned %d (0=valid)\n", check_peer_direct);
+                fflush(stderr);
+            }
+            
+            /* Check if we can re-export immediately before the call */
+            fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: [PRE-CALL] Re-exporting keys immediately before call...\n");
+            fflush(stderr);
+            word32 pre_call_local_pub_len = CURVE25519_KEYSIZE;
+            word32 pre_call_peer_pub_len = CURVE25519_KEYSIZE;
+            byte pre_call_local_pub[CURVE25519_KEYSIZE];
+            byte pre_call_peer_pub[CURVE25519_KEYSIZE];
+            int pre_call_local_rc = wc_curve25519_export_public_ex(local_key, pre_call_local_pub, &pre_call_local_pub_len, EC25519_LITTLE_ENDIAN);
+            int pre_call_peer_rc = wc_curve25519_export_public_ex(peer_key_derive, pre_call_peer_pub, &pre_call_peer_pub_len, EC25519_LITTLE_ENDIAN);
+            fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: [PRE-CALL] Re-export results - local: rc=%d, len=%u, last_byte=0x%02x (MSB=%s)\n",
+                    pre_call_local_rc, pre_call_local_pub_len,
+                    (pre_call_local_pub_len == CURVE25519_KEYSIZE) ? pre_call_local_pub[CURVE25519_KEYSIZE - 1] : 0,
+                    (pre_call_local_pub_len == CURVE25519_KEYSIZE && (pre_call_local_pub[CURVE25519_KEYSIZE - 1] & 0x80)) ? "SET" : "CLEAR");
+            fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: [PRE-CALL] Re-export results - peer: rc=%d, len=%u, last_byte=0x%02x (MSB=%s)\n",
+                    pre_call_peer_rc, pre_call_peer_pub_len,
+                    (pre_call_peer_pub_len == CURVE25519_KEYSIZE) ? pre_call_peer_pub[CURVE25519_KEYSIZE - 1] : 0,
+                    (pre_call_peer_pub_len == CURVE25519_KEYSIZE && (pre_call_peer_pub[CURVE25519_KEYSIZE - 1] & 0x80)) ? "SET" : "CLEAR");
+            fflush(stderr);
+            
+            /* Validate the pre-call exported keys */
+            if (pre_call_local_rc == 0 && pre_call_peer_rc == 0) {
+                fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: [PRE-CALL] Validating pre-call exported keys...\n");
+                fflush(stderr);
+                int pre_check_local = wc_curve25519_check_public(pre_call_local_pub, pre_call_local_pub_len, EC25519_LITTLE_ENDIAN);
+                int pre_check_peer = wc_curve25519_check_public(pre_call_peer_pub, pre_call_peer_pub_len, EC25519_LITTLE_ENDIAN);
+                fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: [PRE-CALL] Pre-call validation - local=%d, peer=%d (0=valid)\n", 
+                        pre_check_local, pre_check_peer);
+                fflush(stderr);
+            }
+            
+            fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: ===== CALLING wc_curve25519_shared_secret =====\n");
+            fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: [BEFORE] Function call: wc_curve25519_shared_secret(local_key=%p, peer_key=%p, secret=%p, len=%p)\n",
+                    local_key, peer_key_derive, secret, &len);
+            fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: [BEFORE] Local key has private: %s (export rc=%d)\n",
+                    (rc_local_priv == 0 && local_priv_len == CURVE25519_KEYSIZE) ? "YES" : "NO", rc_local_priv);
+            fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: [BEFORE] Secret buffer: %p, len pointer: %p, current len value: %u\n",
+                    secret, &len, len);
+            fflush(stderr);
+            
+            if (ok) {
+                fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: [CALL] Executing wc_curve25519_shared_secret...\n");
+                fflush(stderr);
+                rc = wc_curve25519_shared_secret(local_key, peer_key_derive, secret, &len);
+                fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: [AFTER] wc_curve25519_shared_secret returned: rc=%d\n", rc);
+                fflush(stderr);
+            } else {
+                fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: [SKIP] Not calling wc_curve25519_shared_secret (ok=0, missing private key)\n");
+                fflush(stderr);
+                rc = -199; /* Set error if we detected missing private key */
+            }
             
             fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: ===== RESULT FROM wc_curve25519_shared_secret =====\n");
-            fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: Return code: %d (0=success, -199=ECC_BAD_ARG_E)\n", rc);
-            fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: Output length: %u\n", len);
+            fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: [RESULT] Return code: %d (0=success, -199=ECC_BAD_ARG_E)\n", rc);
+            fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: [RESULT] Output length: %u\n", len);
+            fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: [RESULT] Secret buffer after call: %p\n", secret);
+            if (rc == 0 && secret != NULL) {
+                fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: [RESULT] First 4 bytes of secret: 0x%02x 0x%02x 0x%02x 0x%02x\n",
+                        secret[0], secret[1], secret[2], secret[3]);
+            }
             fflush(stderr);
             
             if (rc != 0) {
                 fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: ===== FAILURE ANALYSIS =====\n");
-                fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: Error code %d (ECC_BAD_ARG_E=-199 means MSB check failed or invalid key)\n", rc);
-                fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: Re-checking keys after failure...\n");
+                fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: [FAIL] Error code %d (ECC_BAD_ARG_E=-199 means MSB check failed or invalid key)\n", rc);
+                fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: [FAIL] Re-checking keys after failure...\n");
                 fflush(stderr);
                 
                 /* Re-export to see if anything changed */
+                fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: [POST-FAIL] Re-exporting LOCAL key...\n");
+                fflush(stderr);
                 word32 local_pub_len2 = CURVE25519_KEYSIZE;
-                word32 peer_pub_len2 = CURVE25519_KEYSIZE;
-                int rc_local2 = wc_curve25519_export_public_ex(local_key, local_pub, &local_pub_len2, EC25519_LITTLE_ENDIAN);
-                int rc_peer2 = wc_curve25519_export_public_ex(peer_key_derive, peer_pub, &peer_pub_len2, EC25519_LITTLE_ENDIAN);
-                if (rc_local2 == 0 && rc_peer2 == 0) {
-                    fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: After failure - LOCAL last_byte=0x%02x (MSB=%s), PEER last_byte=0x%02x (MSB=%s)\n",
-                            local_pub[CURVE25519_KEYSIZE - 1],
-                            (local_pub[CURVE25519_KEYSIZE - 1] & 0x80) ? "SET" : "CLEAR",
-                            peer_pub[CURVE25519_KEYSIZE - 1],
-                            (peer_pub[CURVE25519_KEYSIZE - 1] & 0x80) ? "SET" : "CLEAR");
+                word32 local_priv_len2 = CURVE25519_KEYSIZE;
+                byte local_pub2[CURVE25519_KEYSIZE];
+                byte local_priv2[CURVE25519_KEYSIZE];
+                int rc_local2_pub = wc_curve25519_export_public_ex(local_key, local_pub2, &local_pub_len2, EC25519_LITTLE_ENDIAN);
+                int rc_local2_priv = wc_curve25519_export_private_raw_ex(local_key, local_priv2, &local_priv_len2, EC25519_LITTLE_ENDIAN);
+                fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: [POST-FAIL] LOCAL re-export - pub: rc=%d, len=%u, last_byte=0x%02x (MSB=%s)\n",
+                        rc_local2_pub, local_pub_len2,
+                        (local_pub_len2 == CURVE25519_KEYSIZE) ? local_pub2[CURVE25519_KEYSIZE - 1] : 0,
+                        (local_pub_len2 == CURVE25519_KEYSIZE && (local_pub2[CURVE25519_KEYSIZE - 1] & 0x80)) ? "SET" : "CLEAR");
+                fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: [POST-FAIL] LOCAL re-export - priv: rc=%d, len=%u\n",
+                        rc_local2_priv, local_priv_len2);
+                if (rc_local2_pub == 0 && local_pub_len2 == CURVE25519_KEYSIZE) {
+                    int check_local_post = wc_curve25519_check_public(local_pub2, local_pub_len2, EC25519_LITTLE_ENDIAN);
+                    fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: [POST-FAIL] LOCAL validation check: %d (0=valid)\n", check_local_post);
                 }
+                fflush(stderr);
+                
+                fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: [POST-FAIL] Re-exporting PEER key...\n");
+                fflush(stderr);
+                word32 peer_pub_len2 = CURVE25519_KEYSIZE;
+                byte peer_pub2[CURVE25519_KEYSIZE];
+                int rc_peer2 = wc_curve25519_export_public_ex(peer_key_derive, peer_pub2, &peer_pub_len2, EC25519_LITTLE_ENDIAN);
+                fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: [POST-FAIL] PEER re-export - pub: rc=%d, len=%u, last_byte=0x%02x (MSB=%s)\n",
+                        rc_peer2, peer_pub_len2,
+                        (peer_pub_len2 == CURVE25519_KEYSIZE) ? peer_pub2[CURVE25519_KEYSIZE - 1] : 0,
+                        (peer_pub_len2 == CURVE25519_KEYSIZE && (peer_pub2[CURVE25519_KEYSIZE - 1] & 0x80)) ? "SET" : "CLEAR");
+                if (rc_peer2 == 0 && peer_pub_len2 == CURVE25519_KEYSIZE) {
+                    int check_peer_post = wc_curve25519_check_public(peer_pub2, peer_pub_len2, EC25519_LITTLE_ENDIAN);
+                    fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: [POST-FAIL] PEER validation check: %d (0=valid)\n", check_peer_post);
+                }
+                fflush(stderr);
+                
+                /* Compare pre-call and post-fail exports */
+                if (pre_call_local_rc == 0 && rc_local2_pub == 0 && 
+                    pre_call_peer_rc == 0 && rc_peer2 == 0) {
+                    fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: [POST-FAIL] Comparing pre-call vs post-fail exports...\n");
+                    int local_changed = 0;
+                    int peer_changed = 0;
+                    int j;
+                    for (j = 0; j < CURVE25519_KEYSIZE; j++) {
+                        if (pre_call_local_pub[j] != local_pub2[j]) {
+                            local_changed = 1;
+                            break;
+                        }
+                    }
+                    for (j = 0; j < CURVE25519_KEYSIZE; j++) {
+                        if (pre_call_peer_pub[j] != peer_pub2[j]) {
+                            peer_changed = 1;
+                            break;
+                        }
+                    }
+                    fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: [POST-FAIL] Key changes - local: %s, peer: %s\n",
+                            local_changed ? "CHANGED" : "UNCHANGED",
+                            peer_changed ? "CHANGED" : "UNCHANGED");
+                    fflush(stderr);
+                }
+                
                 fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: ===== END FAILURE ANALYSIS =====\n");
                 fflush(stderr);
                 ok = 0;
             } else {
-                fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: SUCCESS - shared secret derived, len=%u\n", len);
+                fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: [SUCCESS] Shared secret derived successfully, len=%u\n", len);
+                if (secret != NULL && len > 0) {
+                    fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: [SUCCESS] Secret bytes (first 8): ");
+                    size_t print_len = (len < 8) ? len : 8;
+                    size_t k;
+                    for (k = 0; k < print_len; k++) {
+                        fprintf(stderr, "0x%02x ", secret[k]);
+                    }
+                    fprintf(stderr, "\n");
+                }
                 fflush(stderr);
             }
         }

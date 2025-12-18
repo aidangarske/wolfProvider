@@ -1241,6 +1241,25 @@ int wolfssl_provider_init(const OSSL_CORE_HANDLE* handle,
 
     WOLFPROV_ENTER(WP_LOG_COMP_PROVIDER, "wolfssl_provider_init");
 
+    /* UNCONDITIONAL: Always try to enable wolfSSL debugging if available */
+    /* This helps debug X25519 issues even when WOLFPROV_DEBUG is not defined */
+    /* Check for environment variable to enable wolfSSL debug */
+#if defined(XGETENV) && !defined(NO_GETENV)
+    char* wolfssl_debug_env = XGETENV("WOLFSSL_DEBUG");
+    if (wolfssl_debug_env != NULL && XATOI(wolfssl_debug_env) == 1) {
+        fprintf(stderr, "[WOLFPROV-DEBUG] Enabling wolfSSL debug logging (WOLFSSL_DEBUG=1)\n");
+        fflush(stderr);
+        if (wolfSSL_Debugging_ON() == 0) {
+            wolfSSL_SetLoggingPrefix("wolfSSL");
+            fprintf(stderr, "[WOLFPROV-DEBUG] wolfSSL debug logging enabled successfully\n");
+            fflush(stderr);
+        } else {
+            fprintf(stderr, "[WOLFPROV-DEBUG] WARNING: wolfSSL debug not available (not built with --enable-debug)\n");
+            fflush(stderr);
+        }
+    }
+#endif
+
 #ifdef WOLFPROV_DEBUG
     ok = (wolfProv_Debugging_ON() == 0);
     if (ok) {
