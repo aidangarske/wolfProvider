@@ -1391,8 +1391,49 @@ static wp_Ecx* wp_ecx_gen(wp_EcxGenCtx* ctx, OSSL_CALLBACK* osslcb, void* cbarg)
             ecx = NULL;
         }
         else {
-            ecx->hasPub = 1;
-            ecx->hasPriv = 1;
+            /* FIX for wolfSSL PR #9543: After wc_curve25519_make_key, check if pubSet is valid */
+            /* The new check in wolfSSL sets pubSet=false if MSB is set, which causes */
+            /* wc_curve25519_shared_secret to fail with -199. We need to ensure MSB is clear. */
+            #ifdef WP_HAVE_X25519
+            if (ecx->data->keyType == WP_KEY_TYPE_X25519) {
+                curve25519_key* key = (curve25519_key*)&ecx->key.x25519;
+                byte pub_key[CURVE25519_KEYSIZE];
+                word32 pub_len = CURVE25519_KEYSIZE;
+                int export_rc = wc_curve25519_export_public_ex(key, pub_key, &pub_len, EC25519_LITTLE_ENDIAN);
+                if (export_rc == 0 && pub_len == CURVE25519_KEYSIZE) {
+                    /* Check if MSB is set - if so, clear it and re-import to fix pubSet */
+                    if ((pub_key[CURVE25519_KEYSIZE - 1] & 0x80) != 0) {
+                        fprintf(stderr, "[X25519-DEBUG] wp_ecx_gen: Generated key has MSB set (0x%02x), clearing it...\n",
+                                pub_key[CURVE25519_KEYSIZE - 1]);
+                        fflush(stderr);
+                        pub_key[CURVE25519_KEYSIZE - 1] &= 0x7f;
+                        int import_rc = wc_curve25519_import_public_ex(pub_key, CURVE25519_KEYSIZE, key, EC25519_LITTLE_ENDIAN);
+                        if (import_rc != 0) {
+                            fprintf(stderr, "[X25519-DEBUG] wp_ecx_gen: Failed to re-import public key with MSB cleared, rc=%d\n", import_rc);
+                            fflush(stderr);
+                            WOLFPROV_MSG_DEBUG_RETCODE(WP_LOG_LEVEL_DEBUG, "wc_curve25519_import_public_ex", import_rc);
+                            wp_ecx_free(ecx);
+                            ecx = NULL;
+                        } else {
+                            fprintf(stderr, "[X25519-DEBUG] wp_ecx_gen: Successfully fixed MSB, pubSet should now be true\n");
+                            fflush(stderr);
+                        }
+                    } else {
+                        fprintf(stderr, "[X25519-DEBUG] wp_ecx_gen: Generated key MSB is clear (0x%02x), pubSet should be true\n",
+                                pub_key[CURVE25519_KEYSIZE - 1]);
+                        fflush(stderr);
+                    }
+                } else {
+                    fprintf(stderr, "[X25519-DEBUG] wp_ecx_gen: Failed to export public key after generation, rc=%d, len=%u\n",
+                            export_rc, pub_len);
+                    fflush(stderr);
+                }
+            }
+            #endif
+            if (ecx != NULL) {
+                ecx->hasPub = 1;
+                ecx->hasPriv = 1;
+            }
         }
     }
 

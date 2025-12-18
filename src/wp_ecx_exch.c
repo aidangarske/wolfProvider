@@ -571,6 +571,61 @@ static int wp_x25519_derive(wp_EcxCtx* ctx, unsigned char* secret,
                 fflush(stderr);
             }
             
+            /* CRITICAL FIX: Force-clear MSB on BOTH keys right before calling shared_secret */
+            /* wc_curve25519_shared_secret checks MSB from internal key structure, not exported bytes */
+            /* Even if exported bytes show MSB clear, internal structure might have it set */
+            fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: [BEFORE] Force-clearing MSB on both keys before shared_secret call...\n");
+            fflush(stderr);
+            
+            if (ok && pre_call_local_rc == 0 && pre_call_peer_rc == 0) {
+                /* Force-clear MSB on LOCAL key's public key */
+                byte local_pub_fixed[CURVE25519_KEYSIZE];
+                XMEMCPY(local_pub_fixed, pre_call_local_pub, CURVE25519_KEYSIZE);
+                local_pub_fixed[CURVE25519_KEYSIZE - 1] &= 0x7f;
+                fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: [BEFORE] LOCAL key - before fix: 0x%02x, after fix: 0x%02x\n",
+                        pre_call_local_pub[CURVE25519_KEYSIZE - 1], local_pub_fixed[CURVE25519_KEYSIZE - 1]);
+                fflush(stderr);
+                /* Re-import LOCAL public key with MSB cleared */
+                int rc_local_fix = wc_curve25519_import_public_ex(local_pub_fixed, CURVE25519_KEYSIZE, local_key, EC25519_LITTLE_ENDIAN);
+                fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: [BEFORE] LOCAL key re-import with MSB cleared: rc=%d\n", rc_local_fix);
+                fflush(stderr);
+                
+                /* Force-clear MSB on PEER key's public key */
+                byte peer_pub_fixed[CURVE25519_KEYSIZE];
+                XMEMCPY(peer_pub_fixed, pre_call_peer_pub, CURVE25519_KEYSIZE);
+                peer_pub_fixed[CURVE25519_KEYSIZE - 1] &= 0x7f;
+                fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: [BEFORE] PEER key - before fix: 0x%02x, after fix: 0x%02x\n",
+                        pre_call_peer_pub[CURVE25519_KEYSIZE - 1], peer_pub_fixed[CURVE25519_KEYSIZE - 1]);
+                fflush(stderr);
+                /* Re-import PEER public key with MSB cleared */
+                int rc_peer_fix = wc_curve25519_import_public_ex(peer_pub_fixed, CURVE25519_KEYSIZE, peer_key_derive, EC25519_LITTLE_ENDIAN);
+                fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: [BEFORE] PEER key re-import with MSB cleared: rc=%d\n", rc_peer_fix);
+                fflush(stderr);
+                
+                if (rc_local_fix != 0 || rc_peer_fix != 0) {
+                    fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: [BEFORE] ERROR - Failed to re-import keys with MSB cleared! local_rc=%d, peer_rc=%d\n",
+                            rc_local_fix, rc_peer_fix);
+                    fflush(stderr);
+                    ok = 0;
+                } else {
+                    /* Verify the fix worked */
+                    word32 verify_local_len = CURVE25519_KEYSIZE;
+                    word32 verify_peer_len = CURVE25519_KEYSIZE;
+                    byte verify_local[CURVE25519_KEYSIZE];
+                    byte verify_peer[CURVE25519_KEYSIZE];
+                    int verify_local_rc = wc_curve25519_export_public_ex(local_key, verify_local, &verify_local_len, EC25519_LITTLE_ENDIAN);
+                    int verify_peer_rc = wc_curve25519_export_public_ex(peer_key_derive, verify_peer, &verify_peer_len, EC25519_LITTLE_ENDIAN);
+                    if (verify_local_rc == 0 && verify_peer_rc == 0) {
+                        fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: [BEFORE] Verification after fix - LOCAL last_byte=0x%02x (MSB=%s), PEER last_byte=0x%02x (MSB=%s)\n",
+                                verify_local[CURVE25519_KEYSIZE - 1],
+                                (verify_local[CURVE25519_KEYSIZE - 1] & 0x80) ? "SET" : "CLEAR",
+                                verify_peer[CURVE25519_KEYSIZE - 1],
+                                (verify_peer[CURVE25519_KEYSIZE - 1] & 0x80) ? "SET" : "CLEAR");
+                        fflush(stderr);
+                    }
+                }
+            }
+            
             fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: ===== CALLING wc_curve25519_shared_secret =====\n");
             fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: [BEFORE] Function call: wc_curve25519_shared_secret(local_key=%p, peer_key=%p, secret=%p, len=%p)\n",
                     local_key, peer_key_derive, secret, &len);
@@ -587,7 +642,7 @@ static int wp_x25519_derive(wp_EcxCtx* ctx, unsigned char* secret,
                 fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: [AFTER] wc_curve25519_shared_secret returned: rc=%d\n", rc);
                 fflush(stderr);
             } else {
-                fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: [SKIP] Not calling wc_curve25519_shared_secret (ok=0, missing private key)\n");
+                fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: [SKIP] Not calling wc_curve25519_shared_secret (ok=0, missing private key or fix failed)\n");
                 fflush(stderr);
                 rc = -199; /* Set error if we detected missing private key */
             }
