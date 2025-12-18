@@ -61,16 +61,66 @@ int DSO_free(DSO *dso);
 
 /* Forward declarations for OpenSSL internal provider functions.
  * These are not part of the public API but are needed to manually
- * construct and register a provider with a specific init function. */
-OSSL_PROVIDER *ossl_provider_new(OSSL_LIB_CTX *libctx, const char *name,
-                                  OSSL_provider_init_fn *init_fn,
-                                  int no_config);
-int ossl_provider_activate(OSSL_PROVIDER *prov, int retain_fallbacks,
-                            int upcalls);
-int ossl_provider_deactivate(OSSL_PROVIDER *prov, int removechildren);
-int ossl_provider_add_to_store(OSSL_PROVIDER *prov, OSSL_PROVIDER **actualprov,
-                                int retain_fallbacks);
-void ossl_provider_free(OSSL_PROVIDER *prov);
+ * construct and register a provider with a specific init function.
+ * Use function pointers loaded dynamically to work in Yocto where
+ * these symbols aren't available at link time. */
+typedef OSSL_PROVIDER *(*ossl_provider_new_fn)(OSSL_LIB_CTX *libctx, const char *name,
+                                                OSSL_provider_init_fn *init_fn,
+                                                int no_config);
+typedef int (*ossl_provider_activate_fn)(OSSL_PROVIDER *prov, int retain_fallbacks,
+                                         int upcalls);
+typedef int (*ossl_provider_deactivate_fn)(OSSL_PROVIDER *prov, int removechildren);
+typedef int (*ossl_provider_add_to_store_fn)(OSSL_PROVIDER *prov, OSSL_PROVIDER **actualprov,
+                                              int retain_fallbacks);
+typedef void (*ossl_provider_free_fn)(OSSL_PROVIDER *prov);
+
+/* Function pointers - loaded dynamically */
+static ossl_provider_new_fn fp_ossl_provider_new = NULL;
+static ossl_provider_activate_fn fp_ossl_provider_activate = NULL;
+static ossl_provider_deactivate_fn fp_ossl_provider_deactivate = NULL;
+static ossl_provider_add_to_store_fn fp_ossl_provider_add_to_store = NULL;
+static ossl_provider_free_fn fp_ossl_provider_free = NULL;
+
+/*
+ * Load OpenSSL internal provider function symbols dynamically.
+ * This is needed for Yocto builds where these symbols aren't available at link time.
+ *
+ * @return  1 on success, 0 on failure.
+ */
+static int wp_load_provider_functions(void)
+{
+    DSO *dso = NULL;
+    int ret = 0;
+
+    /* Get a DSO handle for the library containing OPENSSL_init_crypto */
+    dso = DSO_dsobyaddr((void *)&OPENSSL_init_crypto, 0);
+    if (dso == NULL) {
+        PRINT_ERR_MSG("DSO_dsobyaddr() failed to get handle to libcrypto");
+        return 0;
+    }
+
+    /* Load all required provider functions */
+    fp_ossl_provider_new = (ossl_provider_new_fn)DSO_bind_func(dso, "ossl_provider_new");
+    fp_ossl_provider_activate = (ossl_provider_activate_fn)DSO_bind_func(dso, "ossl_provider_activate");
+    fp_ossl_provider_deactivate = (ossl_provider_deactivate_fn)DSO_bind_func(dso, "ossl_provider_deactivate");
+    fp_ossl_provider_add_to_store = (ossl_provider_add_to_store_fn)DSO_bind_func(dso, "ossl_provider_add_to_store");
+    fp_ossl_provider_free = (ossl_provider_free_fn)DSO_bind_func(dso, "ossl_provider_free");
+
+    /* Check if all functions were loaded */
+    if (fp_ossl_provider_new == NULL ||
+        fp_ossl_provider_activate == NULL ||
+        fp_ossl_provider_deactivate == NULL ||
+        fp_ossl_provider_add_to_store == NULL ||
+        fp_ossl_provider_free == NULL) {
+        PRINT_ERR_MSG("Failed to load one or more provider function symbols");
+        ret = 0;
+    } else {
+        ret = 1;
+    }
+
+    /* Don't free the DSO - we need the symbols to remain valid */
+    return ret;
+}
 
 /*
  * Get the ossl_default_provider_init function pointer from OpenSSL's
@@ -123,6 +173,14 @@ static OSSL_PROVIDER* wp_load_default_provider_direct(OSSL_LIB_CTX* libctx)
     OSSL_PROVIDER* prov = NULL;
     OSSL_PROVIDER* actual = NULL;
 
+    /* Load provider functions dynamically if not already loaded */
+    if (fp_ossl_provider_new == NULL) {
+        if (!wp_load_provider_functions()) {
+            PRINT_ERR_MSG("Failed to load provider functions");
+            return NULL;
+        }
+    }
+
     /* Get the real default provider init function */
     init_fn = wp_get_default_provider_init_sym();
     if (init_fn == NULL) {
@@ -131,32 +189,32 @@ static OSSL_PROVIDER* wp_load_default_provider_direct(OSSL_LIB_CTX* libctx)
     }
 
     /* Create a new provider structure with the name "real-default" */
-    prov = ossl_provider_new(libctx, "real-default", init_fn, 0);
+    prov = fp_ossl_provider_new(libctx, "real-default", init_fn, 0);
     if (prov == NULL) {
         PRINT_ERR_MSG("ossl_provider_new() failed");
         return NULL;
     }
 
     /* Activate the provider */
-    if (!ossl_provider_activate(prov, 1, 0)) {
+    if (!fp_ossl_provider_activate(prov, 1, 0)) {
         PRINT_ERR_MSG("ossl_provider_activate() failed");
-        ossl_provider_free(prov);
+        fp_ossl_provider_free(prov);
         return NULL;
     }
 
     /* Add provider to the store */
     actual = prov;
-    if (!ossl_provider_add_to_store(prov, &actual, 0)) {
+    if (!fp_ossl_provider_add_to_store(prov, &actual, 0)) {
         PRINT_ERR_MSG("ossl_provider_add_to_store() failed");
-        ossl_provider_deactivate(prov, 1);
-        ossl_provider_free(prov);
+        fp_ossl_provider_deactivate(prov, 1);
+        fp_ossl_provider_free(prov);
         return NULL;
     }
 
     if (actual != prov) {
-        if (!ossl_provider_activate(actual, 1, 0)) {
+        if (!fp_ossl_provider_activate(actual, 1, 0)) {
             PRINT_ERR_MSG("ossl_provider_activate() failed");
-            ossl_provider_free(actual);
+            fp_ossl_provider_free(actual);
             return NULL;
         }
     }
