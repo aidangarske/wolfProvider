@@ -1,0 +1,1 @@
+# ⚠️ CI ARTIFACTS — NOT FOR PRODUCTION\n\nFiles in this branch are generated automatically by CI.\n\nThey are not releases and not supported for production use.\n\n## Structure\n\n- `wics/` - Yocto WIC image files (.wic.xz)
