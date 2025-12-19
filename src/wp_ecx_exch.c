@@ -641,58 +641,69 @@ static int wp_x25519_derive(wp_EcxCtx* ctx, unsigned char* secret,
                         (test_peer_pub[CURVE25519_KEYSIZE - 1] & 0x80) ? "SET" : "CLEAR");
             }
             
-            /* Check and fix key state - determine which check would fail in wc_curve25519_shared_secret */
-            if (test_local_pub_rc != 0 || test_local_pub_len != CURVE25519_KEYSIZE) {
-                fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: [BEFORE] ERROR: LOCAL key pubSet is FALSE (cannot export public key)\n");
-                fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: [BEFORE] Cannot fix LOCAL key - it has private key, re-importing public would corrupt it\n");
-                ok = 0;
-            } else {
-                /* LOCAL key public export succeeded, verify MSB is clear */
-                if (test_local_pub[CURVE25519_KEYSIZE - 1] & 0x80) {
-                    fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: [BEFORE] ERROR: LOCAL key public key MSB is SET (0x%02x)\n",
-                            test_local_pub[CURVE25519_KEYSIZE - 1]);
-                    fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: [BEFORE] Cannot fix LOCAL key - it has private key, re-importing public would corrupt it\n");
+            /* CRITICAL: Always normalize both keys' public keys by re-importing with MSB cleared */
+            /* This ensures the INTERNAL structure (p.point[]) has MSB clear, which is what */
+            /* wc_curve25519_shared_secret checks, not the exported bytes */
+            /* Re-importing public key on LOCAL keypair is safe - it only updates the public portion */
+            if (ok && test_local_pub_rc == 0 && test_local_pub_len == CURVE25519_KEYSIZE) {
+                /* Always clear MSB and re-import LOCAL public key to ensure internal structure is correct */
+                byte local_pub_normalized[CURVE25519_KEYSIZE];
+                XMEMCPY(local_pub_normalized, test_local_pub, CURVE25519_KEYSIZE);
+                local_pub_normalized[CURVE25519_KEYSIZE - 1] &= 0x7f;
+                
+                int fix_local_rc = wc_curve25519_import_public_ex(local_pub_normalized, CURVE25519_KEYSIZE, local_key, EC25519_LITTLE_ENDIAN);
+                if (fix_local_rc != 0) {
+                    fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: [BEFORE] ERROR - Failed to normalize LOCAL key public key! rc=%d\n", fix_local_rc);
+                    fflush(stderr);
                     ok = 0;
-                }
-            }
-            
-            if (test_local_priv_rc != 0 || test_local_priv_len != CURVE25519_KEYSIZE) {
-                fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: [BEFORE] ERROR: LOCAL key privSet is FALSE (cannot export private key)\n");
-                ok = 0;
-            }
-            
-            if (test_peer_pub_rc != 0 || test_peer_pub_len != CURVE25519_KEYSIZE) {
-                fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: [BEFORE] ERROR: PEER key pubSet is FALSE (cannot export public key)\n");
-                fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: [BEFORE] Cannot fix PEER key - export failed, no key data available\n");
-                ok = 0;
-            } else {
-                /* PEER key public export succeeded, check and fix MSB if needed */
-                if (test_peer_pub[CURVE25519_KEYSIZE - 1] & 0x80) {
-                    fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: [BEFORE] PEER key public key MSB is SET (0x%02x), fixing...\n",
-                            test_peer_pub[CURVE25519_KEYSIZE - 1]);
-                    test_peer_pub[CURVE25519_KEYSIZE - 1] &= 0x7f;
-                    int fix_rc = wc_curve25519_import_public_ex(test_peer_pub, CURVE25519_KEYSIZE, peer_key_derive, EC25519_LITTLE_ENDIAN);
-                    if (fix_rc != 0) {
-                        fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: [BEFORE] Failed to fix PEER key MSB, rc=%d\n", fix_rc);
+                } else {
+                    fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: [BEFORE] Normalized LOCAL key public key (MSB cleared in internal structure)\n");
+                    fflush(stderr);
+                    
+                    /* Verify private key is still there after re-importing public */
+                    word32 verify_priv_len = CURVE25519_KEYSIZE;
+                    byte verify_priv[CURVE25519_KEYSIZE];
+                    int verify_priv_rc = wc_curve25519_export_private_raw_ex(local_key, verify_priv, &verify_priv_len, EC25519_LITTLE_ENDIAN);
+                    if (verify_priv_rc != 0 || verify_priv_len != CURVE25519_KEYSIZE) {
+                        fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: [BEFORE] ERROR - LOCAL key lost private key after public key re-import! rc=%d\n", verify_priv_rc);
+                        fflush(stderr);
                         ok = 0;
-                    } else {
-                        fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: [BEFORE] Successfully fixed PEER key MSB\n");
                     }
                 }
+            } else if (ok) {
+                fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: [BEFORE] ERROR: LOCAL key pubSet is FALSE (cannot export public key) rc=%d, len=%u\n",
+                        test_local_pub_rc, test_local_pub_len);
+                fflush(stderr);
+                ok = 0;
             }
-            if (ok && test_local_pub_rc == 0 && test_local_pub_len == CURVE25519_KEYSIZE) {
-                if (test_local_pub[CURVE25519_KEYSIZE - 1] & 0x80) {
-                    fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: [BEFORE] ERROR: LOCAL key public key MSB is SET (0x%02x)\n",
-                            test_local_pub[CURVE25519_KEYSIZE - 1]);
-                    ok = 0;
-                }
+            
+            if (ok && (test_local_priv_rc != 0 || test_local_priv_len != CURVE25519_KEYSIZE)) {
+                fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: [BEFORE] ERROR: LOCAL key privSet is FALSE (cannot export private key) rc=%d, len=%u\n",
+                        test_local_priv_rc, test_local_priv_len);
+                fflush(stderr);
+                ok = 0;
             }
+            
             if (ok && test_peer_pub_rc == 0 && test_peer_pub_len == CURVE25519_KEYSIZE) {
-                if (test_peer_pub[CURVE25519_KEYSIZE - 1] & 0x80) {
-                    fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: [BEFORE] ERROR: PEER key public key MSB is SET (0x%02x)\n",
-                            test_peer_pub[CURVE25519_KEYSIZE - 1]);
+                /* Always clear MSB and re-import PEER public key to ensure internal structure is correct */
+                byte peer_pub_normalized[CURVE25519_KEYSIZE];
+                XMEMCPY(peer_pub_normalized, test_peer_pub, CURVE25519_KEYSIZE);
+                peer_pub_normalized[CURVE25519_KEYSIZE - 1] &= 0x7f;
+                
+                int fix_peer_rc = wc_curve25519_import_public_ex(peer_pub_normalized, CURVE25519_KEYSIZE, peer_key_derive, EC25519_LITTLE_ENDIAN);
+                if (fix_peer_rc != 0) {
+                    fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: [BEFORE] ERROR - Failed to normalize PEER key public key! rc=%d\n", fix_peer_rc);
+                    fflush(stderr);
                     ok = 0;
+                } else {
+                    fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: [BEFORE] Normalized PEER key public key (MSB cleared in internal structure)\n");
+                    fflush(stderr);
                 }
+            } else if (ok) {
+                fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: [BEFORE] ERROR: PEER key pubSet is FALSE (cannot export public key) rc=%d, len=%u\n",
+                        test_peer_pub_rc, test_peer_pub_len);
+                fflush(stderr);
+                ok = 0;
             }
             
             fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: [BEFORE] Secret buffer: %p, len pointer: %p, current len value: %u\n",
