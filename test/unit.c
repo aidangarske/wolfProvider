@@ -52,6 +52,7 @@ void print_buffer(const char *desc, const unsigned char *buffer, size_t len)
 #ifdef WOLFPROV_REPLACE_DEFAULT_UNIT_TEST
 
 #include <openssl/crypto.h>
+#include <dlfcn.h>
 
 /* Forward declarations for OpenSSL internal DSO functions. */
 typedef struct dso_st DSO;
@@ -84,27 +85,73 @@ static ossl_provider_free_fn fp_ossl_provider_free = NULL;
 /*
  * Load OpenSSL internal provider function symbols dynamically.
  * This is needed for Yocto builds where these symbols aren't available at link time.
+ * Try DSO_bind_func first, then fall back to dlsym on libcrypto directly.
  *
  * @return  1 on success, 0 on failure.
  */
 static int wp_load_provider_functions(void)
 {
     DSO *dso = NULL;
-    int ret = 0;
+    void *libcrypto_handle = NULL;
 
-    /* Get a DSO handle for the library containing OPENSSL_init_crypto */
+    /* First, try using DSO_bind_func (preferred method) */
     dso = DSO_dsobyaddr((void *)&OPENSSL_init_crypto, 0);
-    if (dso == NULL) {
-        PRINT_ERR_MSG("DSO_dsobyaddr() failed to get handle to libcrypto");
+    if (dso != NULL) {
+        /* Load all required provider functions via DSO */
+        fp_ossl_provider_new = (ossl_provider_new_fn)DSO_bind_func(dso, "ossl_provider_new");
+        fp_ossl_provider_activate = (ossl_provider_activate_fn)DSO_bind_func(dso, "ossl_provider_activate");
+        fp_ossl_provider_deactivate = (ossl_provider_deactivate_fn)DSO_bind_func(dso, "ossl_provider_deactivate");
+        fp_ossl_provider_add_to_store = (ossl_provider_add_to_store_fn)DSO_bind_func(dso, "ossl_provider_add_to_store");
+        fp_ossl_provider_free = (ossl_provider_free_fn)DSO_bind_func(dso, "ossl_provider_free");
+
+        /* Check if all functions were loaded via DSO */
+        if (fp_ossl_provider_new != NULL &&
+            fp_ossl_provider_activate != NULL &&
+            fp_ossl_provider_deactivate != NULL &&
+            fp_ossl_provider_add_to_store != NULL &&
+            fp_ossl_provider_free != NULL) {
+            /* Success with DSO method */
+            return 1;
+        }
+    }
+
+    /* DSO method failed or incomplete, try dlsym directly on libcrypto */
+    /* Try common libcrypto library names */
+    const char *libcrypto_names[] = {
+        "libcrypto.so.3",
+        "libcrypto.so",
+        "libcrypto.so.1.1",
+        NULL
+    };
+
+    for (int i = 0; libcrypto_names[i] != NULL; i++) {
+        libcrypto_handle = dlopen(libcrypto_names[i], RTLD_LAZY | RTLD_NOLOAD);
+        if (libcrypto_handle != NULL) {
+            break;
+        }
+    }
+
+    /* If RTLD_NOLOAD didn't work, try opening it normally */
+    if (libcrypto_handle == NULL) {
+        for (int i = 0; libcrypto_names[i] != NULL; i++) {
+            libcrypto_handle = dlopen(libcrypto_names[i], RTLD_LAZY);
+            if (libcrypto_handle != NULL) {
+                break;
+            }
+        }
+    }
+
+    if (libcrypto_handle == NULL) {
+        PRINT_ERR_MSG("Failed to open libcrypto via dlopen");
         return 0;
     }
 
-    /* Load all required provider functions */
-    fp_ossl_provider_new = (ossl_provider_new_fn)DSO_bind_func(dso, "ossl_provider_new");
-    fp_ossl_provider_activate = (ossl_provider_activate_fn)DSO_bind_func(dso, "ossl_provider_activate");
-    fp_ossl_provider_deactivate = (ossl_provider_deactivate_fn)DSO_bind_func(dso, "ossl_provider_deactivate");
-    fp_ossl_provider_add_to_store = (ossl_provider_add_to_store_fn)DSO_bind_func(dso, "ossl_provider_add_to_store");
-    fp_ossl_provider_free = (ossl_provider_free_fn)DSO_bind_func(dso, "ossl_provider_free");
+    /* Load symbols via dlsym */
+    fp_ossl_provider_new = (ossl_provider_new_fn)dlsym(libcrypto_handle, "ossl_provider_new");
+    fp_ossl_provider_activate = (ossl_provider_activate_fn)dlsym(libcrypto_handle, "ossl_provider_activate");
+    fp_ossl_provider_deactivate = (ossl_provider_deactivate_fn)dlsym(libcrypto_handle, "ossl_provider_deactivate");
+    fp_ossl_provider_add_to_store = (ossl_provider_add_to_store_fn)dlsym(libcrypto_handle, "ossl_provider_add_to_store");
+    fp_ossl_provider_free = (ossl_provider_free_fn)dlsym(libcrypto_handle, "ossl_provider_free");
 
     /* Check if all functions were loaded */
     if (fp_ossl_provider_new == NULL ||
@@ -112,14 +159,27 @@ static int wp_load_provider_functions(void)
         fp_ossl_provider_deactivate == NULL ||
         fp_ossl_provider_add_to_store == NULL ||
         fp_ossl_provider_free == NULL) {
-        PRINT_ERR_MSG("Failed to load one or more provider function symbols");
-        ret = 0;
-    } else {
-        ret = 1;
+        const char *dlerr = dlerror();
+        fprintf(stderr, "ERROR: Failed to load OpenSSL internal provider symbols.\n");
+        fprintf(stderr, "Missing symbols: ");
+        if (fp_ossl_provider_new == NULL) fprintf(stderr, "ossl_provider_new ");
+        if (fp_ossl_provider_activate == NULL) fprintf(stderr, "ossl_provider_activate ");
+        if (fp_ossl_provider_deactivate == NULL) fprintf(stderr, "ossl_provider_deactivate ");
+        if (fp_ossl_provider_add_to_store == NULL) fprintf(stderr, "ossl_provider_add_to_store ");
+        if (fp_ossl_provider_free == NULL) fprintf(stderr, "ossl_provider_free ");
+        fprintf(stderr, "\n");
+        if (dlerr != NULL) {
+            fprintf(stderr, "dlsym error: %s\n", dlerr);
+        }
+        fprintf(stderr, "NOTE: OpenSSL must be built with --enable-replace-default-testing\n");
+        fprintf(stderr, "      to export these internal symbols for unit testing.\n");
+        PRINT_ERR_MSG("Failed to load one or more provider function symbols via dlsym");
+        dlclose(libcrypto_handle);
+        return 0;
     }
 
-    /* Don't free the DSO - we need the symbols to remain valid */
-    return ret;
+    /* Success with dlsym method - don't close the handle, we need the symbols */
+    return 1;
 }
 
 /*
@@ -135,23 +195,59 @@ static OSSL_provider_init_fn* wp_get_default_provider_init_sym(void)
 {
     DSO *dso = NULL;
     OSSL_provider_init_fn* init_fn = NULL;
+    void *libcrypto_handle = NULL;
 
-    /* Get a DSO handle for the library containing OPENSSL_init_crypto.*/
+    /* First, try using DSO_bind_func (preferred method) */
     dso = DSO_dsobyaddr((void *)&OPENSSL_init_crypto, 0);
-    if (dso == NULL) {
-        PRINT_ERR_MSG("DSO_dsobyaddr() failed to get handle to libcrypto");
+    if (dso != NULL) {
+        init_fn = (OSSL_provider_init_fn*)DSO_bind_func(dso, "ossl_default_provider_init");
+        if (init_fn != NULL) {
+            /* Success with DSO method */
+            return init_fn;
+        }
+    }
+
+    /* DSO method failed, try dlsym directly on libcrypto */
+    const char *libcrypto_names[] = {
+        "libcrypto.so.3",
+        "libcrypto.so",
+        "libcrypto.so.1.1",
+        NULL
+    };
+
+    for (int i = 0; libcrypto_names[i] != NULL; i++) {
+        libcrypto_handle = dlopen(libcrypto_names[i], RTLD_LAZY | RTLD_NOLOAD);
+        if (libcrypto_handle != NULL) {
+            break;
+        }
+    }
+
+    if (libcrypto_handle == NULL) {
+        for (int i = 0; libcrypto_names[i] != NULL; i++) {
+            libcrypto_handle = dlopen(libcrypto_names[i], RTLD_LAZY);
+            if (libcrypto_handle != NULL) {
+                break;
+            }
+        }
+    }
+
+    if (libcrypto_handle == NULL) {
+        PRINT_ERR_MSG("Failed to open libcrypto via dlopen for ossl_default_provider_init");
         return NULL;
     }
 
-    /* Directly get the init function of the default provider */
-    init_fn = (OSSL_provider_init_fn*)DSO_bind_func(dso, "ossl_default_provider_init");
+    init_fn = (OSSL_provider_init_fn*)dlsym(libcrypto_handle, "ossl_default_provider_init");
     if (init_fn == NULL) {
-        PRINT_ERR_MSG("Failed to find ossl_default_provider_init symbol via DSO API");
-        DSO_free(dso);
+        const char *dlerr = dlerror();
+        if (dlerr != NULL) {
+            fprintf(stderr, "dlsym error for ossl_default_provider_init: %s\n", dlerr);
+        }
+        PRINT_ERR_MSG("Failed to find ossl_default_provider_init symbol via dlsym");
+        dlclose(libcrypto_handle);
         return NULL;
     }
 
-    /* Don't free the DSO - we need the symbol to remain valid */
+    /* Success with dlsym method - don't close the handle, we need the symbol */
     return init_fn;
 }
 
