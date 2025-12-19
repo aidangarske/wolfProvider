@@ -641,40 +641,25 @@ static int wp_x25519_derive(wp_EcxCtx* ctx, unsigned char* secret,
                         (test_peer_pub[CURVE25519_KEYSIZE - 1] & 0x80) ? "SET" : "CLEAR");
             }
             
-            /* CRITICAL: Always normalize both keys' public keys by re-importing with MSB cleared */
-            /* This ensures the INTERNAL structure (p.point[]) has MSB clear, which is what */
-            /* wc_curve25519_shared_secret checks, not the exported bytes */
-            /* Re-importing public key on LOCAL keypair is safe - it only updates the public portion */
-            if (ok && test_local_pub_rc == 0 && test_local_pub_len == CURVE25519_KEYSIZE) {
-                /* Always clear MSB and re-import LOCAL public key to ensure internal structure is correct */
-                byte local_pub_normalized[CURVE25519_KEYSIZE];
-                XMEMCPY(local_pub_normalized, test_local_pub, CURVE25519_KEYSIZE);
-                local_pub_normalized[CURVE25519_KEYSIZE - 1] &= 0x7f;
-                
-                int fix_local_rc = wc_curve25519_import_public_ex(local_pub_normalized, CURVE25519_KEYSIZE, local_key, EC25519_LITTLE_ENDIAN);
-                if (fix_local_rc != 0) {
-                    fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: [BEFORE] ERROR - Failed to normalize LOCAL key public key! rc=%d\n", fix_local_rc);
-                    fflush(stderr);
-                    ok = 0;
-                } else {
-                    fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: [BEFORE] Normalized LOCAL key public key (MSB cleared in internal structure)\n");
-                    fflush(stderr);
-                    
-                    /* Verify private key is still there after re-importing public */
-                    word32 verify_priv_len = CURVE25519_KEYSIZE;
-                    byte verify_priv[CURVE25519_KEYSIZE];
-                    int verify_priv_rc = wc_curve25519_export_private_raw_ex(local_key, verify_priv, &verify_priv_len, EC25519_LITTLE_ENDIAN);
-                    if (verify_priv_rc != 0 || verify_priv_len != CURVE25519_KEYSIZE) {
-                        fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: [BEFORE] ERROR - LOCAL key lost private key after public key re-import! rc=%d\n", verify_priv_rc);
-                        fflush(stderr);
-                        ok = 0;
-                    }
-                }
-            } else if (ok) {
+            /* CRITICAL: Verify LOCAL key pubSet/privSet flags are set correctly */
+            /* The LOCAL key is generated, so it should already be correct - we don't re-import it */
+            /* Re-importing might clear pubSet/privSet flags, causing the -199 error */
+            if (ok && (test_local_pub_rc != 0 || test_local_pub_len != CURVE25519_KEYSIZE)) {
                 fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: [BEFORE] ERROR: LOCAL key pubSet is FALSE (cannot export public key) rc=%d, len=%u\n",
                         test_local_pub_rc, test_local_pub_len);
                 fflush(stderr);
                 ok = 0;
+            }
+            
+            /* Check for MSB on LOCAL key - if set, log warning but don't try to fix */
+            /* Re-importing might clear pubSet/privSet flags */
+            if (ok && test_local_pub_rc == 0 && test_local_pub_len == CURVE25519_KEYSIZE) {
+                if (test_local_pub[CURVE25519_KEYSIZE - 1] & 0x80) {
+                    fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: [BEFORE] WARNING: LOCAL key MSB is SET (0x%02x) but not fixing to avoid clearing pubSet/privSet flags\n",
+                            test_local_pub[CURVE25519_KEYSIZE - 1]);
+                    fflush(stderr);
+                    /* Note: This might cause -199 if wolfSSL checks MSB, but re-importing might clear flags */
+                }
             }
             
             if (ok && (test_local_priv_rc != 0 || test_local_priv_len != CURVE25519_KEYSIZE)) {
@@ -684,6 +669,9 @@ static int wp_x25519_derive(wp_EcxCtx* ctx, unsigned char* secret,
                 ok = 0;
             }
             
+            /* CRITICAL: Normalize PEER key public key by re-importing with MSB cleared */
+            /* PEER key is public-only, so re-importing is safe and won't affect privSet */
+            /* This ensures the INTERNAL structure (p.point[]) has MSB clear */
             if (ok && test_peer_pub_rc == 0 && test_peer_pub_len == CURVE25519_KEYSIZE) {
                 /* Always clear MSB and re-import PEER public key to ensure internal structure is correct */
                 byte peer_pub_normalized[CURVE25519_KEYSIZE];
@@ -696,8 +684,19 @@ static int wp_x25519_derive(wp_EcxCtx* ctx, unsigned char* secret,
                     fflush(stderr);
                     ok = 0;
                 } else {
-                    fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: [BEFORE] Normalized PEER key public key (MSB cleared in internal structure)\n");
+                    fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: [BEFORE] Normalized PEER key public key (MSB cleared, pubSet should be true)\n");
                     fflush(stderr);
+                    
+                    /* Verify pubSet is still set after re-import */
+                    word32 verify_peer_pub_len = CURVE25519_KEYSIZE;
+                    byte verify_peer_pub[CURVE25519_KEYSIZE];
+                    int verify_peer_pub_rc = wc_curve25519_export_public_ex(peer_key_derive, verify_peer_pub, &verify_peer_pub_len, EC25519_LITTLE_ENDIAN);
+                    if (verify_peer_pub_rc != 0 || verify_peer_pub_len != CURVE25519_KEYSIZE) {
+                        fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: [BEFORE] ERROR - PEER key lost pubSet after re-import! rc=%d, len=%u\n",
+                                verify_peer_pub_rc, verify_peer_pub_len);
+                        fflush(stderr);
+                        ok = 0;
+                    }
                 }
             } else if (ok) {
                 fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: [BEFORE] ERROR: PEER key pubSet is FALSE (cannot export public key) rc=%d, len=%u\n",
@@ -709,10 +708,36 @@ static int wp_x25519_derive(wp_EcxCtx* ctx, unsigned char* secret,
             fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: [BEFORE] Secret buffer: %p, len pointer: %p, current len value: %u\n",
                     secret, &len, len);
             fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: [BEFORE] Pre-call validation: ok=%d\n", ok);
+            
+            /* DEBUG: Check which code path wolfSSL will take based on compilation flags */
+            fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: [COMPILE-CHECK] Checking compilation flags...\n");
+            #ifdef WOLFSSL_SE050
+                fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: [COMPILE-CHECK] WOLFSSL_SE050 is DEFINED - privSet check will be SKIPPED\n");
+            #else
+                fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: [COMPILE-CHECK] WOLFSSL_SE050 is NOT defined - privSet check will be PERFORMED\n");
+            #endif
+            #ifdef WOLF_CRYPTO_CB
+                fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: [COMPILE-CHECK] WOLF_CRYPTO_CB is DEFINED - crypto callback path available\n");
+            #else
+                fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: [COMPILE-CHECK] WOLF_CRYPTO_CB is NOT defined - no crypto callback path\n");
+            #endif
+            #ifdef WOLFSSL_CURVE25519_BLINDING
+                fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: [COMPILE-CHECK] WOLFSSL_CURVE25519_BLINDING is DEFINED - using blinded scalar multiplication\n");
+            #else
+                fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: [COMPILE-CHECK] WOLFSSL_CURVE25519_BLINDING is NOT defined - using standard scalar multiplication\n");
+            #endif
             fflush(stderr);
             
             if (ok) {
                 fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: [CALL] Executing wc_curve25519_shared_secret...\n");
+                fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: [CALL] Note: -199 (ECC_BAD_ARG_E) can come from:\n");
+                fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: [CALL]   1. !public_key->pubSet\n");
+                #ifndef WOLFSSL_SE050
+                    fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: [CALL]   2. !private_key->privSet (checked because WOLFSSL_SE050 not defined)\n");
+                #else
+                    fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: [CALL]   2. !private_key->privSet (SKIPPED because WOLFSSL_SE050 defined)\n");
+                #endif
+                fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: [CALL]   3. MSB check: public_key->p.point[31] & 0x80\n");
                 fflush(stderr);
                 rc = wc_curve25519_shared_secret(local_key, peer_key_derive, secret, &len);
                 fprintf(stderr, "[X25519-DEBUG] wp_x25519_derive: [AFTER] wc_curve25519_shared_secret returned: rc=%d\n", rc);
