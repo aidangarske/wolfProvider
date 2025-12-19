@@ -99,14 +99,12 @@ jobs:
           path: ${{ env.DEBS_PATH }}
 
       # Download pre-built WIC images from wics branch (for Yocto builds)
-      # Files have unique names, so we just need fips and nonfips directories
-      # Note: Git LFS files are automatically downloaded by checkout action
-      - name: Install Git LFS and xz-utils
+      # Files may be split into parts (>100MB) to comply with GitHub's file size limits
+      - name: Install xz-utils
         if: steps.check_artifact.outcome != 'success' && inputs.build_type == 'yocto'
         run: |
           apt-get update
-          apt-get install -y git-lfs xz-utils
-          git lfs install
+          apt-get install -y xz-utils
 
       - name: Checkout wics branch
         if: steps.check_artifact.outcome != 'success' && inputs.build_type == 'yocto'
@@ -119,7 +117,6 @@ jobs:
             nonfips
           sparse-checkout-cone-mode: false
           path: ${{ env.WICS_PATH }}
-          lfs: true
 
       - name: Setup WIC images from wics branch
         if: steps.check_artifact.outcome != 'success' && inputs.build_type == 'yocto'
@@ -153,8 +150,56 @@ jobs:
             echo "Contents:"
             ls -lah "$nested_path"
             
-            # Find and copy .wic.xz files
-            find "$nested_path" -name "*.wic.xz" -type f ! -name ".gitkeep" -exec cp {} ${{ env.YOCTO_IMAGES_PATH }}/ \;
+            cd "$nested_path"
+            
+            # Check for split files (.wic.xz.part-*) or reassembly script
+            PART_FILES=$(find . -name "*.wic.xz.part-*" -type f | sort)
+            REASSEMBLE_SCRIPT=$(find . -name "*.wic.xz.reassemble.sh" -type f | head -1)
+            SINGLE_FILE=$(find . -name "*.wic.xz" -type f ! -name "*.wic.xz.part-*" | head -1)
+            
+            if [ -n "$PART_FILES" ]; then
+              echo "Found split WIC files, reassembling..."
+              
+              # Determine the base filename from the first part file
+              FIRST_PART=$(echo "$PART_FILES" | head -1)
+              BASE_NAME=$(basename "$FIRST_PART" | sed 's/\.part-[0-9]*$//')
+              
+              echo "Base filename: $BASE_NAME"
+              echo "Part files found:"
+              echo "$PART_FILES"
+              
+              # Check if reassembly script exists and use it, otherwise reassemble manually
+              if [ -n "$REASSEMBLE_SCRIPT" ]; then
+                echo "Using reassembly script: $REASSEMBLE_SCRIPT"
+                bash "$REASSEMBLE_SCRIPT"
+              else
+                echo "Reassembling manually by concatenating parts in order..."
+                # Use the sorted list to ensure correct order
+                cat $(echo "$PART_FILES" | tr '\n' ' ') > "$BASE_NAME"
+                echo "Reassembly complete"
+              fi
+              
+              # Verify the reassembled file exists
+              if [ ! -f "$BASE_NAME" ]; then
+                echo "ERROR: Failed to reassemble $BASE_NAME"
+                exit 1
+              fi
+              
+              # Copy the reassembled file to output directory
+              cp "$BASE_NAME" ${{ env.YOCTO_IMAGES_PATH }}/
+              echo "Copied reassembled file: $BASE_NAME"
+              
+            elif [ -n "$SINGLE_FILE" ]; then
+              echo "Found single WIC file: $SINGLE_FILE"
+              cp "$SINGLE_FILE" ${{ env.YOCTO_IMAGES_PATH }}/
+              echo "Copied single file: $SINGLE_FILE"
+            else
+              echo "ERROR: No WIC files found (neither split parts nor single file)"
+              echo "Searched for:"
+              echo "  - Split files: *.wic.xz.part-*"
+              echo "  - Single file: *.wic.xz"
+              exit 1
+            fi
             
             # Decompress .wic.xz files to .wic files
             cd ${{ env.YOCTO_IMAGES_PATH }}
@@ -166,7 +211,8 @@ jobs:
                 echo "Decompressed to: ${xz_file%.xz}"
               done
             else
-              echo "WARNING: No .wic.xz files found to decompress"
+              echo "ERROR: No .wic.xz files found to decompress"
+              exit 1
             fi
             
             echo "Copied and decompressed WIC file(s) for matrix: fips_ref=${{ inputs.fips_ref }}, replace_default=${{ inputs.replace_default }}"
