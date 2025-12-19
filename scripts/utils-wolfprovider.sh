@@ -103,8 +103,8 @@ install_wolfprov() {
     fi
 
     if [ "$WOLFPROV_REPLACE_DEFAULT" = "1" ]; then
-        WOLFPROV_CONFIG_OPTS+=" --enable-replace-default"
-    fi
+        WOLFPROV_CONFIG_CFLAGS="${WOLFPROV_CONFIG_CFLAGS} -DWOLFPROV_REPLACE_DEFAULT"
+   fi
 
     if [ "${WOLFPROV_LEAVE_SILENT}" = "1" ]; then
         WOLFPROV_CONFIG_CFLAGS="${WOLFPROV_CONFIG_CFLAGS} -DWOLFPROV_LEAVE_SILENT_MODE"
