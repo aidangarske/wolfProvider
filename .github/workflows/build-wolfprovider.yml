@@ -169,14 +169,24 @@ jobs:
               echo "$PART_FILES"
               
               # Check if reassembly script exists and use it, otherwise reassemble manually
+              # If script fails, fall back to manual reassembly
+              REASSEMBLED=false
               if [ -n "$REASSEMBLE_SCRIPT" ]; then
-                echo "Using reassembly script: $REASSEMBLE_SCRIPT"
-                bash "$REASSEMBLE_SCRIPT"
-              else
+                echo "Attempting to use reassembly script: $REASSEMBLE_SCRIPT"
+                if bash "$REASSEMBLE_SCRIPT" 2>&1 && [ -f "$BASE_NAME" ]; then
+                  echo "Reassembly script completed successfully"
+                  REASSEMBLED=true
+                else
+                  echo "WARNING: Reassembly script failed or did not produce output, falling back to manual reassembly"
+                fi
+              fi
+              
+              if [ "$REASSEMBLED" = "false" ]; then
                 echo "Reassembling manually by concatenating parts in order..."
-                # Use the sorted list to ensure correct order
-                cat $(echo "$PART_FILES" | tr '\n' ' ') > "$BASE_NAME"
-                echo "Reassembly complete"
+                # Use glob pattern which will naturally sort the part files correctly
+                # The pattern *.wic.xz.part-* will expand in sorted order
+                cat *.wic.xz.part-* > "$BASE_NAME"
+                echo "Manual reassembly complete"
               fi
               
               # Verify the reassembled file exists
