@@ -25,7 +25,7 @@ jobs:
     strategy:
       matrix:
         wolfssl_ref: [ 'v5.8.4-stable' ]
-        openssl_ref: [ 'openssl-3.2.1' ]
+        openssl_ref: [ 'openssl-3.2.6' ]
         fips_ref: [ 'FIPS', 'non-FIPS' ]
         replace_default: [ true, false ]
 
@@ -41,7 +41,7 @@ jobs:
       fail-fast: false
       matrix:
         wolfssl_ref: [ 'v5.8.4-stable' ]
-        openssl_ref: [ 'openssl-3.2.1' ]
+        openssl_ref: [ 'openssl-3.2.6' ]
         fips_ref: [ 'FIPS', 'non-FIPS' ]
         replace_default: [ true, false ]
 
@@ -52,7 +52,7 @@ jobs:
       fail-fast: false
       matrix:
         wolfssl_ref: [ 'v5.8.4-stable' ]
-        openssl_ref: [ 'openssl-3.2.1' ]
+        openssl_ref: [ 'openssl-3.2.6' ]
         fips_ref: [ 'FIPS', 'non-FIPS' ]
         replace_default: [ true, false ]
     runs-on: ubuntu-latest
