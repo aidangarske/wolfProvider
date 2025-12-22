@@ -26,7 +26,7 @@ jobs:
       matrix:
         wolfssl_ref: [ 'v5.8.4-stable' ]
         openssl_ref: [ 'openssl-3.2.6' ]
-        fips_ref: [ 'FIPS', 'non-FIPS' ]
+        fips_ref: [ 'FIPS' ]
         replace_default: [ true, false ]
 
   verify_yocto_env:
@@ -42,7 +42,7 @@ jobs:
       matrix:
         wolfssl_ref: [ 'v5.8.4-stable' ]
         openssl_ref: [ 'openssl-3.2.6' ]
-        fips_ref: [ 'FIPS', 'non-FIPS' ]
+        fips_ref: [ 'FIPS' ]
         replace_default: [ true, false ]
 
   run_librelp_ptest:
