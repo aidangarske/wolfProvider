@@ -27,6 +27,7 @@
 #include <openssl/evp.h>
 #include <openssl/hmac.h>
 
+#include <wolfprovider/settings.h>
 #include <wolfprovider/alg_funcs.h>
 #include <wolfprovider/internal.h>
 
@@ -61,6 +62,10 @@ typedef struct wp_DrbgCtx {
     OSSL_FUNC_rand_get_seed_fn* parentGetSeed;
     /** Parent's clear_seed function. */
     OSSL_FUNC_rand_clear_seed_fn* parentClearSeed;
+#ifndef WP_HAVE_DRBG_RESEED
+    /** Set when a failed reseed re-instantiation left ctx->rng de-instantiated. */
+    int rngError;
+#endif
 } wp_DrbgCtx;
 
 
@@ -143,6 +148,8 @@ static void wp_drbg_free(wp_DrbgCtx* ctx)
     }
 }
 
+static int wp_drbg_uninstantiate(wp_DrbgCtx* ctx);
+
 /**
  * Instantiate a new DRBG.
  *
@@ -171,6 +178,11 @@ static int wp_drbg_instantiate(wp_DrbgCtx* ctx, unsigned int strength,
         ok = 0;
     }
 
+    /* Free any existing DRBG before re-allocating to avoid a leak. */
+    if (ok && ctx->rng != NULL) {
+        wp_drbg_uninstantiate(ctx);
+    }
+
     if (ok && ctx->parentGetSeed != NULL) {
         /* Get entropy from parent DRBG (no file I/O needed) */
         WOLFPROV_MSG_DEBUG(WP_LOG_COMP_RNG,
@@ -189,22 +201,29 @@ static int wp_drbg_instantiate(wp_DrbgCtx* ctx, unsigned int strength,
         }
 
         if (ok) {
-            /* Initialize wolfCrypt RNG with parent-provided seed */
+            /* Use wc_rng_new (>= 5.0) so alloc and free use the same allocator,
+             * matching the root path and wc_rng_free() in teardown. */
+        #if LIBWOLFSSL_VERSION_HEX >= 0x05000000
+            ctx->rng = wc_rng_new(seed, (word32)seedLen, NULL);
+            if (ctx->rng == NULL) {
+                ok = 0;
+            }
+        #else
             ctx->rng = OPENSSL_zalloc(sizeof(*ctx->rng));
             if (ctx->rng == NULL) {
                 ok = 0;
             }
-        }
-
-        if (ok) {
-            int rc = wc_InitRngNonce(ctx->rng, seed, (word32)seedLen);
-            if (rc != 0) {
-                WOLFPROV_MSG_DEBUG_RETCODE(WP_LOG_COMP_RNG,
-                    "wc_InitRngNonce", rc);
-                OPENSSL_free(ctx->rng);
-                ctx->rng = NULL;
-                ok = 0;
+            if (ok) {
+                int rc = wc_InitRngNonce(ctx->rng, seed, (word32)seedLen);
+                if (rc != 0) {
+                    WOLFPROV_MSG_DEBUG_RETCODE(WP_LOG_COMP_RNG,
+                        "wc_InitRngNonce", rc);
+                    OPENSSL_clear_free(ctx->rng, sizeof(*ctx->rng));
+                    ctx->rng = NULL;
+                    ok = 0;
+                }
             }
+        #endif
         }
 
         /* Clear the seed from parent */
@@ -242,6 +261,13 @@ static int wp_drbg_instantiate(wp_DrbgCtx* ctx, unsigned int strength,
     #endif
     }
 
+#ifndef WP_HAVE_DRBG_RESEED
+    if (ok) {
+        /* Clear any prior reseed error state. */
+        ctx->rngError = 0;
+    }
+#endif
+
     WOLFPROV_LEAVE(WP_LOG_COMP_RNG, __FILE__ ":" WOLFPROV_STRINGIZE(__LINE__), ok);
     return ok;
 }
@@ -262,6 +288,9 @@ static int wp_drbg_uninstantiate(wp_DrbgCtx* ctx)
     OPENSSL_clear_free(ctx->rng, sizeof(*ctx->rng));
 #endif
     ctx->rng = NULL;
+#ifndef WP_HAVE_DRBG_RESEED
+    ctx->rngError = 0;
+#endif
     WOLFPROV_LEAVE(WP_LOG_COMP_RNG, __FILE__ ":" WOLFPROV_STRINGIZE(__LINE__), 1);
     return 1;
 }
@@ -292,6 +321,16 @@ static int wp_drbg_generate(wp_DrbgCtx* ctx, unsigned char* out,
     if (strength > WP_DRBG_STRENGTH) {
         ok = 0;
     }
+    if (ok && ctx->rng == NULL) {
+        WOLFPROV_MSG_DEBUG(WP_LOG_COMP_RNG, "DRBG not instantiated");
+        ok = 0;
+    }
+#ifndef WP_HAVE_DRBG_RESEED
+    if (ok && ctx->rngError) {
+        WOLFPROV_MSG_DEBUG(WP_LOG_COMP_RNG, "DRBG in error state");
+        ok = 0;
+    }
+#endif
 #if 0
     if (ok && (addInLen > 0)) {
         rc = wc_RNG_DRBG_Reseed(ctx->rng, addIn, addInLen);
@@ -322,6 +361,10 @@ static int wp_drbg_generate(wp_DrbgCtx* ctx, unsigned char* out,
 /**
  * Reseed DRBG.
  *
+ * When WP_HAVE_DRBG_RESEED is undefined (FIPS modules without an exported
+ * wc_RNG_DRBG_Reseed), this re-instantiates rather than reseeding: @p entropy /
+ * @p addIn are used as the nonce, not as DRBG entropy_input.
+ *
  * @param [in, out] ctx         DRBG context object.
  * @param [in]      predResist  Prediction resistance required.
  * @param [in]      entropy     Entropy data to reseed with.
@@ -343,8 +386,13 @@ static int wp_drbg_reseed(wp_DrbgCtx* ctx, int predResist,
 
     WOLFPROV_ENTER(WP_LOG_COMP_RNG, "wp_drbg_reseed");
 
+    /* Reseed requires an instantiated DRBG. */
+    if (ctx->rng == NULL) {
+        ok = 0;
+    }
+
     /* If no entropy provided, get fresh entropy from the OS source. */
-    if (entropy == NULL || entropyLen == 0) {
+    if (ok && (entropy == NULL || entropyLen == 0)) {
         seedLen = 48;
         seed = OPENSSL_malloc(seedLen);
         if (seed == NULL) {
@@ -363,6 +411,16 @@ static int wp_drbg_reseed(wp_DrbgCtx* ctx, int predResist,
         }
     }
 
+    /* wolfCrypt RNG APIs take word32 lengths; reject oversized inputs. */
+    if (ok && entropyLen > 0xFFFFFFFFU) {
+        ok = 0;
+    }
+    if (ok && addIn != NULL && addInLen > 0xFFFFFFFFU) {
+        ok = 0;
+    }
+
+#ifdef WP_HAVE_DRBG_RESEED
+    /* In-place SP 800-90A reseed via wolfCrypt's public DRBG API. */
     if (ok && entropy != NULL && entropyLen > 0) {
         rc = wc_RNG_DRBG_Reseed(ctx->rng, entropy, (word32)entropyLen);
         if (rc != 0) {
@@ -379,6 +437,52 @@ static int wp_drbg_reseed(wp_DrbgCtx* ctx, int predResist,
             ok = 0;
         }
     }
+#else
+    /* FIPS modules without an exported wc_RNG_DRBG_Reseed (e.g. cert4718):
+     * re-instantiate in place via wc_FreeRng() + wc_InitRngNonce() on the same
+     * WC_RNG struct (entropy/addIn used as the nonce, not as reseed input). A
+     * failed re-init leaves the DRBG de-instantiated and sets rngError. */
+    if (ok && entropy != NULL && entropyLen > 0) {
+        unsigned char* nonce = NULL;
+        word32 nonceLen = 0;
+
+        /* Guard against overflow when concatenating entropy || addIn. */
+        if (addIn != NULL && addInLen > (0xFFFFFFFFU - entropyLen)) {
+            ok = 0;
+        }
+        if (ok) {
+            nonceLen = (word32)entropyLen +
+                ((addIn != NULL) ? (word32)addInLen : 0);
+            nonce = OPENSSL_malloc(nonceLen);
+            if (nonce == NULL) {
+                ok = 0;
+            }
+        }
+        if (ok) {
+            XMEMCPY(nonce, entropy, entropyLen);
+            if (addIn != NULL && addInLen > 0) {
+                XMEMCPY(nonce + entropyLen, addIn, addInLen);
+            }
+        }
+        if (ok) {
+            wc_FreeRng(ctx->rng);
+            rc = wc_InitRngNonce(ctx->rng, nonce, nonceLen);
+            if (rc != 0) {
+                WOLFPROV_MSG_DEBUG_RETCODE(WP_LOG_COMP_RNG,
+                    "wc_InitRngNonce", rc);
+                ctx->rngError = 1;
+                ok = 0;
+            }
+            else {
+                /* Recovered: clear any prior reseed error. */
+                ctx->rngError = 0;
+            }
+        }
+        if (nonce != NULL) {
+            OPENSSL_clear_free(nonce, nonceLen);
+        }
+    }
+#endif /* WP_HAVE_DRBG_RESEED */
 
     /* Securely clear and free locally allocated seed buffer. */
     if (seed != NULL) {
@@ -512,15 +616,25 @@ static int wp_drbg_get_ctx_params(wp_DrbgCtx* ctx, OSSL_PARAM params[])
 
     WOLFPROV_ENTER(WP_LOG_COMP_RNG, "wp_drbg_get_ctx_params");
 
-    (void)ctx;
-
     p = OSSL_PARAM_locate(params, OSSL_RAND_PARAM_MAX_REQUEST);
     if ((p != NULL) && (!OSSL_PARAM_set_size_t(p, WP_DRBG_MAX_REQUESTS))) {
         ok = 0;
     }
     if (ok) {
+        int state = EVP_RAND_STATE_READY;
+
+        if (ctx->rng == NULL) {
+            state = EVP_RAND_STATE_UNINITIALISED;
+        }
+    #ifndef WP_HAVE_DRBG_RESEED
+        /* Failed reseed re-instantiation left the DRBG de-instantiated. */
+        else if (ctx->rngError) {
+            state = EVP_RAND_STATE_ERROR;
+        }
+    #endif
+
         p = OSSL_PARAM_locate(params, OSSL_RAND_PARAM_STATE);
-        if ((p != NULL) && (!OSSL_PARAM_set_int(p, EVP_RAND_STATE_READY))) {
+        if ((p != NULL) && (!OSSL_PARAM_set_int(p, state))) {
             ok = 0;
         }
     }
