@@ -28,6 +28,27 @@
 #include <wolfssl/version.h>
 #include <wolfssl/wolfcrypt/settings.h>
 
+/* wc_RNG_DRBG_Reseed is public (WOLFSSL_API) in non-FIPS >= 5.7.2 and FIPS
+ * v5.2.4+/v6/v7, but WOLFSSL_LOCAL in FIPS v5.2.1 (cert4718). Nested guards so
+ * an undefined FIPS version component means fallback, not a -Wundef error. */
+#if !defined(HAVE_FIPS)
+    #if LIBWOLFSSL_VERSION_HEX >= 0x05007002
+        #define WP_HAVE_DRBG_RESEED
+    #endif
+#elif !defined(HAVE_FIPS_VERSION_MAJOR)
+    /* FIPS with unknown version: fall back. */
+#elif HAVE_FIPS_VERSION_MAJOR > 5
+    #define WP_HAVE_DRBG_RESEED
+#elif HAVE_FIPS_VERSION_MAJOR == 5 && defined(HAVE_FIPS_VERSION_MINOR)
+    #if HAVE_FIPS_VERSION_MINOR > 2
+        #define WP_HAVE_DRBG_RESEED
+    #elif HAVE_FIPS_VERSION_MINOR == 2 && defined(HAVE_FIPS_VERSION_PATCH)
+        #if HAVE_FIPS_VERSION_PATCH >= 4
+            #define WP_HAVE_DRBG_RESEED
+        #endif
+    #endif
+#endif
+
 #define WP_HAVE_DIGEST
 #if !defined(NO_MD5)
     #define WP_HAVE_MD5
