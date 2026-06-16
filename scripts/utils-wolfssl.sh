@@ -320,7 +320,10 @@ install_wolfssl() {
                 do_cleanup
                 exit 1
             fi
-            cd ..
+            # bundles never cd into XXX-fips-test, so skip the matching cd ..
+            if [ -z "$WOLFSSL_FIPS_BUNDLE" ]; then
+                cd ..
+            fi
             printf "Done.\n"
         fi
     fi
