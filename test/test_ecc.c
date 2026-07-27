@@ -992,6 +992,17 @@ int test_ecc_encode_epki(void *data)
     }
 
     EVP_PKEY_free(osslKey);
+    if (err == 0) {
+        PRINT_MSG("PrivateKeyInfo DER with cipher set must encrypt");
+        err = test_pki_cipher_encrypts(pkey, "DER", "provider=libwolfprov",
+            wpLibCtx, 1);
+    }
+    if (err == 0) {
+        PRINT_MSG("PrivateKeyInfo PEM with cipher set must encrypt");
+        err = test_pki_cipher_encrypts(pkey, "PEM", "provider=libwolfprov",
+            wpLibCtx, 1);
+    }
+
     EVP_PKEY_free(pkey);
 
     return err;

@@ -316,6 +316,12 @@ int test_pkey_dec(EVP_PKEY *pkey, OSSL_LIB_CTX* libCtx, unsigned char *msg,
     size_t msgLen, unsigned char *ciphertext, size_t cipherLen, int padMode,
     const EVP_MD *rsaMd, const EVP_MD *rsaMgf1Md);
 
+/* Key-format helpers, used by every algorithm's tests. */
+int test_pki_cipher_encrypts(EVP_PKEY* pkey, const char* fmt,
+    const char* encProp, OSSL_LIB_CTX* decLibCtx, int cmpKey);
+int test_epki_encode_decode(EVP_PKEY* pkey, const char* fmt,
+                  const char* encProp, OSSL_LIB_CTX* decLibCtx);
+
 #ifdef WP_HAVE_RSA
 int test_pkey_enc_rsa(EVP_PKEY *pkey, unsigned char *msg, size_t msgLen,
                   unsigned char *ciphertext, size_t cipherLen, int padMode,
@@ -323,8 +329,6 @@ int test_pkey_enc_rsa(EVP_PKEY *pkey, unsigned char *msg, size_t msgLen,
 int test_pkey_dec_rsa(EVP_PKEY *pkey, unsigned char *msg, size_t msgLen,
                   unsigned char *ciphertext, size_t cipherLen, int padMode,
                   const EVP_MD *rsaMd, const EVP_MD *rsaMgf1Md);
-int test_epki_encode_decode(EVP_PKEY* pkey, const char* fmt,
-                  const char* encProp, OSSL_LIB_CTX* decLibCtx);
 int test_rsa_sign_sha1(void *data);
 int test_rsa_sign_verify_pkcs1(void *data);
 int test_rsa_sign_verify_recover_pkcs1(void *data);

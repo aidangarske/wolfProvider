@@ -1568,7 +1568,17 @@ static int wp_mldsa_encode(wp_MlDsaEncDecCtx* ctx, OSSL_CORE_BIO* cBio,
     /* By default the plaintext DER is the source for the output encoding. */
     srcData = derData;
     srcLen = derLen;
-    if (ok && (ctx->format == WP_ENC_FORMAT_EPKI)) {
+    /* A cipher on a PrivateKeyInfo encoder selects the encrypted form. */
+#ifndef WOLFSSL_ENCRYPTED_KEYS
+    if (ok && (ctx->format == WP_ENC_FORMAT_PKI) &&
+            (ctx->cipherName != NULL)) {
+        /* No encrypted-key support in this build. */
+        ok = 0;
+    }
+#endif
+    if (ok && ((ctx->format == WP_ENC_FORMAT_EPKI) ||
+            ((ctx->format == WP_ENC_FORMAT_PKI) &&
+             (ctx->cipherName != NULL)))) {
         pemType = PKCS8_ENC_PRIVATEKEY_TYPE;
         /* The PBES2 output is larger than the plaintext and must use a
          * separate buffer, so size it and encrypt into fresh memory. */

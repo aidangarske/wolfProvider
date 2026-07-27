@@ -3561,13 +3561,16 @@ static int wp_rsa_encode(wp_RsaEncDecCtx* ctx, OSSL_CORE_BIO* cBio,
         }
     }
     else if (ok && (ctx->format == WP_ENC_FORMAT_PKI)) {
-#ifdef WOLFSSL_ENCRYPTED_KEYS
+        /* A cipher on a PrivateKeyInfo encoder selects the encrypted form. */
         if (ctx->cipherName != NULL) {
+#ifdef WOLFSSL_ENCRYPTED_KEYS
             ok = wp_rsa_encode_enc_pki_size(ctx, key, &derLen);
-        }
-        else
+#else
+            /* No encrypted-key support in this build. */
+            ok = 0;
 #endif
-        if (!wp_rsa_encode_pki_size(key, &derLen, RSA_ALGO_ID(ctx))) {
+        }
+        else if (!wp_rsa_encode_pki_size(key, &derLen, RSA_ALGO_ID(ctx))) {
             ok = 0;
         }
     }
@@ -3606,15 +3609,17 @@ static int wp_rsa_encode(wp_RsaEncDecCtx* ctx, OSSL_CORE_BIO* cBio,
     }
     else if (ok && (ctx->format == WP_ENC_FORMAT_PKI)) {
         private = 1;
-#ifdef WOLFSSL_ENCRYPTED_KEYS
         if (ctx->cipherName != NULL) {
+#ifdef WOLFSSL_ENCRYPTED_KEYS
             pemType = PKCS8_ENC_PRIVATEKEY_TYPE;
             ok = wp_rsa_encode_enc_pki(ctx, key, derData, &derLen, pwCb,
                 pwCbArg);
-        }
-        else
+#else
+            ok = 0;
 #endif
-        if (!wp_rsa_encode_pki(key, derData, &derLen, RSA_ALGO_ID(ctx))) {
+        }
+        else if (!wp_rsa_encode_pki(key, derData, &derLen,
+                RSA_ALGO_ID(ctx))) {
             ok = 0;
         }
     }

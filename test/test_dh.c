@@ -19,6 +19,7 @@
  */
 
 #include "unit.h"
+#include <openssl/params.h>
 #include <openssl/core_names.h>
 #include <openssl/decoder.h>
 #include <wolfprovider/internal.h>
@@ -394,6 +395,53 @@ int test_dh_encode_epki(void *data)
         PRINT_MSG("EncryptedPrivateKeyInfo PEM: wolfProvider -> wolfProvider");
         err = test_epki_encode_decode(pkey, "PEM", "provider=libwolfprov",
             wpLibCtx);
+    }
+
+    if (err == 0) {
+        PRINT_MSG("PrivateKeyInfo DER with cipher set must encrypt");
+        err = test_pki_cipher_encrypts(pkey, "DER", "provider=libwolfprov",
+            wpLibCtx, 1);
+    }
+    if (err == 0) {
+        PRINT_MSG("PrivateKeyInfo PEM with cipher set must encrypt");
+        err = test_pki_cipher_encrypts(pkey, "PEM", "provider=libwolfprov",
+            wpLibCtx, 1);
+    }
+    /* A generated key keeps its private value in wp_Dh rather than the inner
+     * wolfSSL key, so it reaches encode paths an imported key does not. */
+    if (err == 0) {
+        EVP_PKEY* genKey = NULL;
+        EVP_PKEY_CTX* genCtx = NULL;
+        OSSL_PARAM gp[2];
+
+        PRINT_MSG("Generated key: PrivateKeyInfo with cipher set");
+        gp[0] = OSSL_PARAM_construct_utf8_string(OSSL_PKEY_PARAM_GROUP_NAME,
+            (char*)"ffdhe2048", 0);
+        gp[1] = OSSL_PARAM_construct_end();
+
+        genCtx = EVP_PKEY_CTX_new_from_name(wpLibCtx, "DH", NULL);
+        err = (genCtx == NULL);
+        if (err == 0) {
+            err = EVP_PKEY_keygen_init(genCtx) != 1;
+        }
+        if (err == 0) {
+            err = EVP_PKEY_CTX_set_params(genCtx, gp) != 1;
+        }
+        if (err == 0) {
+            err = EVP_PKEY_generate(genCtx, &genKey) != 1;
+        }
+        if (err == 0) {
+            /* No key comparison: a generated DH key does not compare equal
+             * after a PKCS#8 round trip, with or without a cipher. */
+            err = test_pki_cipher_encrypts(genKey, "DER",
+                "provider=libwolfprov", wpLibCtx, 0);
+        }
+        if (err == 0) {
+            err = test_pki_cipher_encrypts(genKey, "PEM",
+                "provider=libwolfprov", wpLibCtx, 0);
+        }
+        EVP_PKEY_free(genKey);
+        EVP_PKEY_CTX_free(genCtx);
     }
 
     EVP_PKEY_free(pkey);

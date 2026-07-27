@@ -2957,7 +2957,18 @@ static int wp_ecc_encode(wp_EccEncDecCtx* ctx, OSSL_CORE_BIO *cBio,
     }
     else if (ok && (ctx->format == WP_ENC_FORMAT_PKI)) {
         private = 1;
-        if (!wp_ecc_encode_pki_size(key, &derLen)) {
+        /* A cipher on a PrivateKeyInfo encoder selects the encrypted form. */
+        if (ctx->cipherName != NULL) {
+#ifdef WOLFSSL_ENCRYPTED_KEYS
+            if (!wp_ecc_encode_epki_size(ctx, key, &derLen)) {
+                ok = 0;
+            }
+#else
+            /* No encrypted-key support in this build. */
+            ok = 0;
+#endif
+        }
+        else if (!wp_ecc_encode_pki_size(key, &derLen)) {
             ok = 0;
         }
     }
@@ -3008,7 +3019,18 @@ static int wp_ecc_encode(wp_EccEncDecCtx* ctx, OSSL_CORE_BIO *cBio,
     }
     else if (ok && (ctx->format == WP_ENC_FORMAT_PKI)) {
         private = 1;
-        if (!wp_ecc_encode_pki(key, derData, &derLen)) {
+        if (ctx->cipherName != NULL) {
+#ifdef WOLFSSL_ENCRYPTED_KEYS
+            pemType = PKCS8_ENC_PRIVATEKEY_TYPE;
+            if (!wp_ecc_encode_epki(ctx, key, derData, &derLen, pwCb,
+                    pwCbArg)) {
+                ok = 0;
+            }
+#else
+            ok = 0;
+#endif
+        }
+        else if (!wp_ecc_encode_pki(key, derData, &derLen)) {
             ok = 0;
         }
     }

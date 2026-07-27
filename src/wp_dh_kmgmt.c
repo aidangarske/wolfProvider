@@ -2637,6 +2637,34 @@ static int wp_dh_encode_spki(const wp_Dh *dh, unsigned char* keyData,
 }
 
 /**
+ * Copy a generated private key into the inner wolfSSL key if not already set.
+ *
+ * @param [in]  dh  DH key object.
+ * @return  1 on success.
+ * @return  0 on failure.
+ */
+static int wp_dh_sync_priv_to_key(const wp_Dh *dh)
+{
+    int ok = 1;
+    int ret;
+
+    WOLFPROV_ENTER(WP_LOG_COMP_DH, "wp_dh_sync_priv_to_key");
+
+    /* If we have a generated private key that is not set in the inner key,
+     * set it now */
+    if (mp_bitsused(&dh->key.priv) == 0 && dh->priv != NULL && dh->privSz > 0) {
+        ret = wc_DhImportKeyPair((DhKey*)&dh->key, dh->priv, (word32)dh->privSz,
+            dh->pub, (word32)dh->pubSz);
+        if (ret != 0) {
+            ok = 0;
+        }
+    }
+
+    WOLFPROV_LEAVE(WP_LOG_COMP_DH, __FILE__ ":" WOLFPROV_STRINGIZE(__LINE__), ok);
+    return ok;
+}
+
+/**
  * Get the PKCS#8 encoding size for the key.
  *
  * @param [in]  dh      DH key object.
@@ -2652,19 +2680,13 @@ static int wp_dh_encode_pki_size(const wp_Dh *dh, size_t* keyLen)
 
     WOLFPROV_ENTER(WP_LOG_COMP_DH, "wp_dh_encode_pki_size");
 
-    /* If we have a generated private key that is not set in the inner key,
-     * set it now */
-    if (mp_bitsused(&dh->key.priv) == 0 && dh->priv != NULL && dh->privSz > 0) {
-        ret = wc_DhImportKeyPair((DhKey*)&dh->key, dh->priv, (word32)dh->privSz,
-            dh->pub, (word32)dh->pubSz);
-        if (ret != 0) {
+    ok = wp_dh_sync_priv_to_key(dh);
+
+    if (ok) {
+        ret = wc_DhPrivKeyToDer((DhKey*)&dh->key, NULL, &len);
+        if (ret != LENGTH_ONLY_E) {
             ok = 0;
         }
-    }
-
-    ret = wc_DhPrivKeyToDer((DhKey*)&dh->key, NULL, &len);
-    if (ret != LENGTH_ONLY_E) {
-        ok = 0;
     }
     if (ok) {
         *keyLen = len;
@@ -2728,10 +2750,14 @@ static int wp_dh_encode_epki_size(const wp_DhEncDecCtx* ctx, const wp_Dh *dh,
 
     WOLFPROV_ENTER(WP_LOG_COMP_DH, "wp_dh_encode_epki_size");
 
-    /* Get the plaintext PKCS #8 length. */
-    ret = wc_DhPrivKeyToDer((DhKey*)&dh->key, NULL, &len);
-    if (ret != LENGTH_ONLY_E) {
-        ok = 0;
+    ok = wp_dh_sync_priv_to_key(dh);
+
+    if (ok) {
+        /* Get the plaintext PKCS #8 length. */
+        ret = wc_DhPrivKeyToDer((DhKey*)&dh->key, NULL, &len);
+        if (ret != LENGTH_ONLY_E) {
+            ok = 0;
+        }
     }
     if (ok) {
         /* Get the size of the PBES2 EncryptedPrivateKeyInfo encoding. */
@@ -2861,7 +2887,18 @@ static int wp_dh_encode(wp_DhEncDecCtx* ctx, OSSL_CORE_BIO *cBio,
     }
     else if (ok && (ctx->format == WP_ENC_FORMAT_PKI)) {
         private = 1;
-        if (!wp_dh_encode_pki_size(key, &derLen)) {
+        /* A cipher on a PrivateKeyInfo encoder selects the encrypted form. */
+        if (ctx->cipherName != NULL) {
+#ifdef WOLFSSL_ENCRYPTED_KEYS
+            if (!wp_dh_encode_epki_size(ctx, key, &derLen)) {
+                ok = 0;
+            }
+#else
+            /* No encrypted-key support in this build. */
+            ok = 0;
+#endif
+        }
+        else if (!wp_dh_encode_pki_size(key, &derLen)) {
             ok = 0;
         }
     }
@@ -2896,7 +2933,18 @@ static int wp_dh_encode(wp_DhEncDecCtx* ctx, OSSL_CORE_BIO *cBio,
     }
     else if (ok && (ctx->format == WP_ENC_FORMAT_PKI)) {
         private = 1;
-        if (!wp_dh_encode_pki(key, derData, &derLen)) {
+        if (ctx->cipherName != NULL) {
+#ifdef WOLFSSL_ENCRYPTED_KEYS
+            pemType = PKCS8_ENC_PRIVATEKEY_TYPE;
+            if (!wp_dh_encode_epki(ctx, key, derData, &derLen, pwCb,
+                    pwCbArg)) {
+                ok = 0;
+            }
+#else
+            ok = 0;
+#endif
+        }
+        else if (!wp_dh_encode_pki(key, derData, &derLen)) {
             ok = 0;
         }
     }
