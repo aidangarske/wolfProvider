@@ -105,6 +105,19 @@ jobs:
           # Build iperf
           make -j
 
+      - name: Probe encrypted-key support
+        run: |
+          for d in $GITHUB_WORKSPACE/wolfssl-install /usr/include /usr/local/include; do
+            f=$d/wolfssl/options.h
+            [ -f "$f" ] || continue
+            echo "options.h: $f"
+            for m in WOLFSSL_ENCRYPTED_KEYS OPENSSL_EXTRA OPENSSL_EXTRA_X509_SMALL \
+                     HAVE_PKCS8 NO_PWDBASED HAVE_FIPS; do
+              printf '  %-28s %s\n' "$m" "$(grep -c "define $m\b" "$f")"
+            done
+            break
+          done
+
       - name: Generate RSA keys
         run: |
           export KEY_DIR=$GITHUB_WORKSPACE/test-keys
