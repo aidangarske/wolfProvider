@@ -25,26 +25,39 @@ set -e
 REPO_ROOT=${GITHUB_WORKSPACE:-$(git rev-parse --show-toplevel)}
 
 openssl_clone() {
-    local debian_version=${1:-bookworm}
-
-    printf "\tDownloading OpenSSL from Debian for $debian_version\n"
-    # Ensure deb-src is enabled for each of main, security, and updates.
-    # A single "deb-src" entry for main is not sufficient: without the
-    # security and updates pockets, 'apt-get source' resolves to the
-    # original release version (e.g. 3.0.18) instead of the latest
-    # security-patched source (e.g. 3.5.5), which quietly produces stale
-    # .debs whose runtime libssl gets clobbered by test-time apt upgrades.
-    touch /etc/apt/sources.list
-    add_deb_src() {
-        local line="$1"
-        if ! grep -Fqx "$line" /etc/apt/sources.list; then
-            printf "\tAdding: %s\n" "$line"
-            echo "$line" >> /etc/apt/sources.list
+    # Fetch the OpenSSL source matching the running distro so the rebuilt
+    # libssl/libcrypto is ABI-compatible with the target system. Ubuntu hosts
+    # its openssl on its own archive, so a Debian deb-src on an Ubuntu
+    # container would fail to verify (no debian-archive-keyring) and pull the
+    # wrong source.
+    . /etc/os-release
+    if [ "${ID:-}" = "ubuntu" ]; then
+        printf "\tDownloading OpenSSL from Ubuntu for ${VERSION_CODENAME}\n"
+        # Noble ships deb822 sources with "Types: deb"; enable deb-src there,
+        # else mirror the legacy one-line deb entries as deb-src.
+        if [ -f /etc/apt/sources.list.d/ubuntu.sources ]; then
+            sed -i 's/^Types: deb$/Types: deb deb-src/' /etc/apt/sources.list.d/ubuntu.sources
+        else
+            sed -nE 's/^deb (\[[^]]*\] )?/deb-src \1/p' /etc/apt/sources.list >> /etc/apt/sources.list
         fi
-    }
-    add_deb_src "deb-src http://deb.debian.org/debian ${debian_version} main"
-    add_deb_src "deb-src http://deb.debian.org/debian-security ${debian_version}-security main"
-    add_deb_src "deb-src http://deb.debian.org/debian ${debian_version}-updates main"
+    else
+        local debian_version=${1:-bookworm}
+        printf "\tDownloading OpenSSL from Debian for $debian_version\n"
+        # deb-src for main + security + updates: without the security/updates
+        # pockets 'apt-get source' resolves to the original release version
+        # instead of the latest security-patched source.
+        touch /etc/apt/sources.list
+        add_deb_src() {
+            local line="$1"
+            if ! grep -Fqx "$line" /etc/apt/sources.list; then
+                printf "\tAdding: %s\n" "$line"
+                echo "$line" >> /etc/apt/sources.list
+            fi
+        }
+        add_deb_src "deb-src http://deb.debian.org/debian ${debian_version} main"
+        add_deb_src "deb-src http://deb.debian.org/debian-security ${debian_version}-security main"
+        add_deb_src "deb-src http://deb.debian.org/debian ${debian_version}-updates main"
+    fi
 
     apt update
     # No -t release pin: apt treats bookworm-security / bookworm-updates as
@@ -192,7 +205,7 @@ main() {
         exit 0
     fi
 
-    if [ -n "output_dir" ]; then
+    if [ -n "$output_dir" ]; then
         output_dir=$(realpath $output_dir)
     fi
 
