@@ -1,0 +1,83 @@
+/*
+ * Copyright 2019-2021 The OpenSSL Project Authors. All Rights Reserved.
+ *
+ * Licensed under the Apache License 2.0 (the "License").  You may not use
+ * this file except in compliance with the License.  You can obtain a copy
+ * in the file LICENSE in the source distribution or at
+ * https://www.openssl.org/source/license.html
+*/
+
+#include <openssl/core.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include "internal/dso.h"
+#include "provider_local.h"
+
+/* For the replace default model we actually do not want OpenSSL built with FIPS.
+ * It pushes FIPS related logic into OpenSSL itself, when that should really be
+ * handled by wolfCrypt. */
+#ifdef FIPS_MODULE
+#error "For wolfProvider replace default mode, do not build OpenSSL with FIPS"
+#endif
+
+static DSO *d = NULL;
+
+/* Common function to dynamically load libwolfprov and call wolfssl_provider_init */
+static int load_wolfprov_and_init(const OSSL_CORE_HANDLE *handle,
+                                const OSSL_DISPATCH *in, const OSSL_DISPATCH **out,
+                                void **provctx) {
+    int ret = 0;
+    OSSL_provider_init_fn *wolfssl_provider_init_fn = NULL;
+
+    if (!d) {
+        d = DSO_new();
+        if (!d) {
+            fprintf(stderr, "DSO_new() failed\n");
+            return 0;
+        }
+
+        if (!DSO_load(d, "wolfprov", NULL, 0)) {
+            fprintf(stderr, "Could not load libwolfprov.so. Is the libwolfprov package installed?\n");
+            DSO_free(d);
+            d = NULL;
+            return 0;
+        }
+    }
+
+    wolfssl_provider_init_fn = (OSSL_provider_init_fn*)DSO_bind_func(d, "wolfssl_provider_init");
+    if (!wolfssl_provider_init_fn) {
+        fprintf(stderr, "Failed to find wolfssl_provider_init symbol\n");
+        return 0;
+    }
+
+    /* Intentionally preserve the DSO 'd' here, since it needs to stay loaded */
+    ret = wolfssl_provider_init_fn(handle, in, out, provctx);
+
+    return ret;
+}
+
+OSSL_provider_init_fn ossl_base_provider_init;
+OSSL_provider_init_fn ossl_null_provider_init;
+
+/* For replace default mode, we will always be the selected provider for attempts
+ * to load either the "fips" or "default" providers by name.
+ *
+ * Ubuntu's OpenSSL turns ossl_predefined_providers into a getter function
+ * (crypto/provider_local.h) so it can return a FIPS list under a FIPS-mode
+ * kernel. wolfProvider services crypto through wolfCrypt, so we return the
+ * wolfProvider list unconditionally rather than honoring ossl_fips_mode(). */
+static const OSSL_PROVIDER_INFO wolfprov_predefined_providers[] = {
+    { "fips", NULL, load_wolfprov_and_init, NULL, 0 },
+    { "default", NULL, load_wolfprov_and_init, NULL, 1 },
+# ifdef STATIC_LEGACY
+    { "legacy", NULL, load_wolfprov_and_init, NULL, 0 },
+# endif
+    { "base", NULL, ossl_base_provider_init, NULL, 0 },
+    { "null", NULL, ossl_null_provider_init, NULL, 0 },
+    { NULL, NULL, NULL, NULL, 0 }
+};
+
+const OSSL_PROVIDER_INFO *ossl_predefined_providers(void)
+{
+    return wolfprov_predefined_providers;
+}

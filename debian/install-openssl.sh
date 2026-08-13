@@ -108,17 +108,23 @@ openssl_patch() {
     if openssl_is_patched; then
         printf "\tOpenSSL already patched\n"
     elif [ "$replace_default" = "1" ]; then
-        printf "\tInstalling wolfProvider replace-default provider_predefined.c ... "
-
         # Drop-in replacement of crypto/provider_predefined.c. We used to
         # apply a unified-diff patch here, but its context lines tracked
         # trivial upstream whitespace reshuffles (e.g. '#ifdef' vs
         # '# ifdef' around STATIC_LEGACY), making it break on every other
-        # openssl point release. The replacement file below is output-
-        # identical to what the old patch produced and is independent of
-        # which upstream version we started from.
-        cp ${REPO_ROOT}/patches/provider_predefined.c.replace-default \
-            crypto/provider_predefined.c
+        # openssl point release.
+        #
+        # Ubuntu's FIPS patch turns ossl_predefined_providers from an extern
+        # array into a getter function; pick the replacement whose form
+        # matches what crypto/provider_local.h declares so the definition
+        # does not clash with the header.
+        if grep -qE 'ossl_predefined_providers[[:space:]]*\(void\)' crypto/provider_local.h; then
+            replace_src="provider_predefined.c.replace-default-getter"
+        else
+            replace_src="provider_predefined.c.replace-default"
+        fi
+        printf "\tInstalling wolfProvider replace-default (%s) ... " "$replace_src"
+        cp ${REPO_ROOT}/patches/${replace_src} crypto/provider_predefined.c
         if [ $? != 0 ]; then
             printf "ERROR.\n"
             printf "\n\nReplacement copy failed.\n"
